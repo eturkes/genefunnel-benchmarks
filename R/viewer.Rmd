@@ -3,6 +3,8 @@ title: "GeneFunnel Benchmarks Viewer"
 output:
   flexdashboard::flex_dashboard:
     source_code: embed
+    orientation: columns
+    vertical_layout: fill
 runtime: shiny
 ---
 
@@ -26,4 +28,149 @@ runtime: shiny
 #    Emir Turkes can be contacted at emir.turkes@eturkes.com
 
 library(conflicted)
+packages <- c(
+  "shinyMatrix", "ComplexHeatmap", "circlize"
+)
+lapply(packages, FUN = library, character.only = TRUE)
+
+top_anno <- HeatmapAnnotation(
+  sample = anno_block(
+    gp = gpar(fill = "lightgray", col = "lightgray"),
+    labels = c("Sample 1", "Sample 2", "Sample 3", "Sample 4"),
+    labels_gp = gpar(col = "black", fontsize = 15),
+    height = unit(10, "mm")
+  )
+)
+```
+
+```{r}
+vec <- c(
+  rep(50, times = 10), rep(c(95, 5), times = 5),
+  rep(5, times = 10), rep(95, times = 10)
+)
+set.seed(1)
+noise <- round(runif(20, min = -4, max = 4))
+
+default_mat <- matrix(
+  vec + noise,
+  nrow =  10,
+  ncol = 4,
+  dimnames = list(
+    paste("Gene", toupper(letters[1:10]), " "),
+    c("Sample 1", "Sample 2", "Sample 3", "Sample 4")
+  )
+)
+
+shinyApp(
+  ui = fluidPage(
+    sidebarPanel(
+      width = 4,
+      tags$h3(
+        HTML("⮦ Click Cells to Edit Matrix ⮧"), style = "text-align:center"
+      ),
+      matrixInput(
+        "mat",
+        label = "Hypothetical Raw Gene Count X Sample Matrix",
+        value = default_mat
+      )
+    ),
+    mainPanel(
+      width = 4,
+      plotOutput("gene_heatmap", height = "450px")
+    ),
+    mainPanel(
+      width = 4,
+      plotOutput("gse_heatmap", height = "450px")
+    )
+  ),
+  server = function(input, output, session) {
+
+    output$gene_heatmap <- renderPlot({
+      heatmap_mat <- apply(input$mat, MARGIN = 2, FUN = as.numeric)
+      rownames(heatmap_mat) <- rownames(input$mat)
+
+      col_range <- c(
+        min(heatmap_mat),
+        (min(heatmap_mat) + max(heatmap_mat)) / 2,
+        max(heatmap_mat)
+      )
+
+      draw(
+        Heatmap(
+          heatmap_mat,
+          name = "Gene Expression\n",
+          col = colorRamp2(col_range, colors = c("blue", "white", "red")),
+          cluster_rows = FALSE,
+          cluster_columns = FALSE,
+          show_column_names = FALSE,
+          top_annotation = top_anno,
+          column_split = seq(4),
+          column_title = "Hypothetical Raw Gene Count by Sample Matrix",
+          rect_gp = gpar(col = "black", lwd = 0.5),
+          column_gap = unit(1, units = "mm"),
+          row_names_gp = gpar(fontsize = 15),
+          column_title_gp = gpar(fontsize = 18),
+          row_names_side = "left",
+          heatmap_legend_param = list(
+            labels_gp = gpar(fontsize = 15), title_gp = gpar(fontsize = 15),
+            legend_height = unit(4, units = "cm"), border = "lightgrey",
+            grid_width = unit(0.75, "cm")
+          )
+        )
+      )
+    })
+
+    output$gse_heatmap <- renderPlot({
+      heatmap_mat <- apply(input$mat, MARGIN = 2, FUN = as.numeric)
+      heatmap_mat <- matrix(
+        c(
+          sum(heatmap_mat[ , 1]) * 2 -
+            sum(abs(heatmap_mat[ , 1] - mean(heatmap_mat[ , 1]))),
+          sum(heatmap_mat[ , 2]) * 2 -
+            sum(abs(heatmap_mat[ , 2] - mean(heatmap_mat[ , 2]))),
+          sum(heatmap_mat[ , 3]) * 2 -
+            sum(abs(heatmap_mat[ , 3] - mean(heatmap_mat[ , 3]))),
+          sum(heatmap_mat[ , 4]) * 2 -
+            sum(abs(heatmap_mat[ , 4] - mean(heatmap_mat[ , 4])))
+        ),
+        nrow =  1,
+        ncol = 4,
+        dimnames = list(
+          "Gene Set X  \n(Genes A to J)  ",
+          c("Sample 1", "Sample 2", "Sample 3", "Sample 4"))
+        )
+
+      col_range <- c(
+        min(heatmap_mat),
+        (min(heatmap_mat) + max(heatmap_mat)) / 2,
+        max(heatmap_mat)
+      )
+
+      draw(
+        Heatmap(
+          heatmap_mat,
+          name = "Gene Set Score\n",
+          col = colorRamp2(col_range, colors = c("blue", "white", "red")),
+          cluster_rows = FALSE,
+          cluster_columns = FALSE,
+          show_column_names = FALSE,
+          top_annotation = top_anno,
+          column_split = seq(4),
+          column_title = "Resulting Gene Set Enrichment by Sample Matrix",
+          rect_gp = gpar(col = "black", lwd = 0.5),
+          column_gap = unit(1, units = "mm"),
+          row_names_gp = gpar(fontsize = 16),
+          column_title_gp = gpar(fontsize = 18),
+          row_names_side = "left",
+          heatmap_legend_param = list(
+            labels_gp = gpar(fontsize = 15), title_gp = gpar(fontsize = 15),
+            legend_height = unit(4, units = "cm"), border = "lightgrey",
+            grid_width = unit(0.75, "cm")
+          )
+        )
+      )
+    })
+
+  }
+)
 ```
