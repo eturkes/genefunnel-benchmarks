@@ -137,8 +137,9 @@ shinyApp(
         ncol = 4,
         dimnames = list(
           "Gene Set X  \n(Genes A to J)  ",
-          c("Sample 1", "Sample 2", "Sample 3", "Sample 4"))
+          c("Sample 1", "Sample 2", "Sample 3", "Sample 4")
         )
+      )
 
       col_range <- c(
         min(heatmap_mat),
