@@ -1,4 +1,13 @@
-#    This file is part of genefunnel-benchmarks
+---
+title: "GeneFunnel Benchmarks Viewer"
+output:
+  flexdashboard::flex_dashboard:
+    source_code: embed
+runtime: shiny
+---
+
+```{r global, include = FALSE}
+#    This file is part of genefunnel-benchmarks.
 #    Copyright (C) 2024  Emir Turkes, UK DRI at UCL
 #
 #    This program is free software: you can redistribute it and/or modify
@@ -16,12 +25,5 @@
 #
 #    Emir Turkes can be contacted at emir.turkes@eturkes.com
 
-FROM rocker/rstudio:4.3.3
-
-LABEL org.opencontainers.image.authors="Emir Turkes emir.turkes@eturkes.com"
-
-RUN Rscript -e "install.packages('flexdashboard')" \
-        -e "install.packages('stringr')" \
-        -e "install.packages('conflicted')" \
-    && rm -Rf /tmp/downloaded_packages/ \
-        /tmp/*.rds
+library(conflicted)
+```
