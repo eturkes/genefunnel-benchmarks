@@ -41,6 +41,8 @@ top_anno <- HeatmapAnnotation(
     height = unit(10, "mm")
   )
 )
+
+ht_opt$DIMNAME_PADDING = unit(3, units = "mm")
 ```
 
 ```{r}
@@ -56,7 +58,7 @@ default_mat <- matrix(
   nrow =  10,
   ncol = 4,
   dimnames = list(
-    paste("Gene", toupper(letters[1:10]), " "),
+    paste("Gene", toupper(letters[1:10])),
     c("Sample 1", "Sample 2", "Sample 3", "Sample 4")
   )
 )
@@ -64,7 +66,7 @@ default_mat <- matrix(
 shinyApp(
   ui = fluidPage(
     sidebarPanel(
-      width = 4,
+      width = 3,
       tags$h3(
         HTML("⮦ Click Cells to Edit Matrix ⮧"), style = "text-align:center"
       ),
@@ -79,7 +81,7 @@ shinyApp(
       plotOutput("gene_heatmap", height = "450px")
     ),
     mainPanel(
-      width = 4,
+      width = 5,
       plotOutput("gse_heatmap", height = "450px")
     )
   ),
@@ -98,7 +100,7 @@ shinyApp(
       draw(
         Heatmap(
           heatmap_mat,
-          name = "Gene Expression\n",
+          name = "Gene Expression",
           col = colorRamp2(col_range, colors = c("blue", "white", "red")),
           cluster_rows = FALSE,
           cluster_columns = FALSE,
@@ -112,32 +114,68 @@ shinyApp(
           column_title_gp = gpar(fontsize = 18),
           row_names_side = "left",
           heatmap_legend_param = list(
-            labels_gp = gpar(fontsize = 15), title_gp = gpar(fontsize = 15),
-            legend_height = unit(4, units = "cm"), border = "lightgrey",
-            grid_width = unit(0.75, "cm")
+            labels_gp = gpar(fontsize = 14), title_gp = gpar(fontsize = 15),
+            border = "lightgrey", title_position = "topcenter",
+            grid_height = unit(4, "mm"), direction = "horizontal"
           )
-        )
+        ),
+        heatmap_legend_side = "top"
       )
     })
 
     output$gse_heatmap <- renderPlot({
-      heatmap_mat <- apply(input$mat, MARGIN = 2, FUN = as.numeric)
+      numeric_mat <- apply(input$mat, MARGIN = 2, FUN = as.numeric)
       heatmap_mat <- matrix(
         c(
-          sum(heatmap_mat[ , 1]) * 2 -
-            sum(abs(heatmap_mat[ , 1] - mean(heatmap_mat[ , 1]))),
-          sum(heatmap_mat[ , 2]) * 2 -
-            sum(abs(heatmap_mat[ , 2] - mean(heatmap_mat[ , 2]))),
-          sum(heatmap_mat[ , 3]) * 2 -
-            sum(abs(heatmap_mat[ , 3] - mean(heatmap_mat[ , 3]))),
-          sum(heatmap_mat[ , 4]) * 2 -
-            sum(abs(heatmap_mat[ , 4] - mean(heatmap_mat[ , 4])))
+          sum(numeric_mat[ , 1]) * 2 -
+            sum(abs(numeric_mat[ , 1] - mean(numeric_mat[ , 1]))),
+          sum(numeric_mat[ , 2]) * 2 -
+            sum(abs(numeric_mat[ , 2] - mean(numeric_mat[ , 2]))),
+          sum(numeric_mat[ , 3]) * 2 -
+            sum(abs(numeric_mat[ , 3] - mean(numeric_mat[ , 3]))),
+          sum(numeric_mat[ , 4]) * 2 -
+            sum(abs(numeric_mat[ , 4] - mean(numeric_mat[ , 4])))
         ),
         nrow =  1,
         ncol = 4,
-        dimnames = list(
-          "Gene Set X  \n(Genes A to J)  ",
-          c("Sample 1", "Sample 2", "Sample 3", "Sample 4")
+        dimnames = list("Gene Set X  \n(Genes A to J)")
+      )
+
+      bottom_anno <- HeatmapAnnotation(
+        text = anno_text(
+          c(
+            paste0(
+              "\n\n\n\nSum = ", sum(numeric_mat[ , 1]) * 2,
+              "\nMean = ", mean(numeric_mat[ , 1]),
+              "\nVar = ", sum(abs(numeric_mat[ , 1] - mean(numeric_mat[ , 1]))),
+              "\nScore = ", sum(numeric_mat[ , 1]) * 2 -
+                sum(abs(numeric_mat[ , 1] - mean(numeric_mat[ , 1])))
+            ),
+            paste0(
+              "\n\n\n\nSum = ", sum(numeric_mat[ , 2]) * 2,
+              "\nMean = ", mean(numeric_mat[ , 2]),
+              "\nVar = ", sum(abs(numeric_mat[ , 2] - mean(numeric_mat[ , 2]))),
+              "\nScore = ", sum(numeric_mat[ , 2]) * 2 -
+                sum(abs(numeric_mat[ , 2] - mean(numeric_mat[ , 2])))
+            ),
+            paste0(
+              "\n\n\n\nSum = ", sum(numeric_mat[ , 3]) * 2,
+              "\nMean = ", mean(numeric_mat[ , 3]),
+              "\nVar = ", sum(abs(numeric_mat[ , 3] - mean(numeric_mat[ , 3]))),
+              "\nScore = ", sum(numeric_mat[ , 3]) * 2 -
+                sum(abs(numeric_mat[ , 3] - mean(numeric_mat[ , 3])))
+            ),
+            paste0(
+              "\n\n\n\nSum = ", sum(numeric_mat[ , 4]) * 2,
+              "\nMean = ", mean(numeric_mat[ , 4]),
+              "\nVar = ", sum(abs(numeric_mat[ , 4] - mean(numeric_mat[ , 4]))),
+              "\nScore = ", sum(numeric_mat[ , 4]) * 2 -
+                sum(abs(numeric_mat[ , 4] - mean(numeric_mat[ , 4])))
+            )
+          ),
+          rot = 0,
+          gp = gpar(fontsize = 18),
+          just = "centre"
         )
       )
 
@@ -150,12 +188,13 @@ shinyApp(
       draw(
         Heatmap(
           heatmap_mat,
-          name = "Gene Set Score\n",
+          name = "Gene Set Score",
           col = colorRamp2(col_range, colors = c("blue", "white", "red")),
           cluster_rows = FALSE,
           cluster_columns = FALSE,
           show_column_names = FALSE,
           top_annotation = top_anno,
+          bottom_annotation = bottom_anno,
           column_split = seq(4),
           column_title = "Resulting Gene Set Enrichment by Sample Matrix",
           rect_gp = gpar(col = "black", lwd = 0.5),
@@ -163,12 +202,15 @@ shinyApp(
           row_names_gp = gpar(fontsize = 16),
           column_title_gp = gpar(fontsize = 18),
           row_names_side = "left",
+          height = unit(0.5, "npc"),
           heatmap_legend_param = list(
-            labels_gp = gpar(fontsize = 15), title_gp = gpar(fontsize = 15),
-            legend_height = unit(4, units = "cm"), border = "lightgrey",
-            grid_width = unit(0.75, "cm")
+            labels_gp = gpar(fontsize = 14), title_gp = gpar(fontsize = 15),
+            border = "lightgrey", title_position = "topcenter",
+            grid_height = unit(4, "mm"), direction = "horizontal"
           )
-        )
+        ),
+        heatmap_legend_side = "top",
+        padding = unit(c(90, 2, 2, 2), units = "mm")
       )
     })
 
