@@ -277,7 +277,6 @@ shinyApp(
         padding = unit(c(90, 2, 2, 2), units = "mm")
       )
     })
-
   }
 )
 ```
