@@ -5,7 +5,7 @@ output:
     source_code: embed
     orientation: columns
     vertical_layout: fill
-runtime: shiny
+    runtime: shiny
 ---
 
 ```{r global, include = FALSE}
