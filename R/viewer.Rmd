@@ -42,10 +42,6 @@ top_anno <- HeatmapAnnotation(
   )
 )
 
-ht_opt$DIMNAME_PADDING = unit(3, units = "mm")
-```
-
-```{r}
 vec <- c(
   rep(50, times = 10), rep(c(95, 5), times = 5),
   rep(100, times = 10), rep(101, times = 5), rep(NA, times = 5)
@@ -63,6 +59,10 @@ default_mat <- matrix(
   )
 )
 
+ht_opt$DIMNAME_PADDING = unit(3, units = "mm")
+```
+
+```{r}
 shinyApp(
   ui = fluidPage(
     sidebarPanel(
@@ -279,4 +279,9 @@ shinyApp(
     })
   }
 )
+```
+
+```{r, include = FALSE}
+rm(vec, noise)
+gc()
 ```
