@@ -1,0 +1,253 @@
+---
+title: "Benchmarks"
+author:
+  - name: "Emir Turkes"
+date: '`r strftime(Sys.time(), format = "%B %d, %Y")`'
+link-citations: true
+output:
+  html_document:
+    code_folding: hide
+    number_sections: true
+    theme: lumen
+    highlight: haddock
+    toc: true
+    toc_depth: 2
+    toc_float:
+      collapsed: false
+      smooth_scroll: false
+knit: (function(inputFile, encoding) {
+  rmarkdown::render(
+    inputFile, encoding = encoding,
+    output_file = file.path(
+      "..", "results", "benchmarks.html"
+    ))})
+---
+
+<style type="text/css">
+body {font-size: 16px;}
+h1.title {font-size: 35px;}
+h1 {font-size: 24px;}
+h2 {font-size: 22px;}
+.toc-content {padding-left: 0px; padding-right: 0px;}
+div.tocify {width: 100%;}
+.tocify-subheader .tocify-item {
+  font-size: 0.95em; padding-left: 25px; text-indent: 0;
+}
+.tocify-subheader .tocify-subheader .tocify-item {
+  font-size: 0.95em; padding-left: 35px; text-indent: 0;
+}
+div.main-container {max-width: none; width: 100%;}
+</style>
+
+*This file is a part of [genefunnel-benchmarks](https://github.com/eturkes/genefunnel-benchmarks).*
+
+The table of contents in the top left is clickable and can be used to quickly navigate the document.
+To toggle the visibility of code, use the `CODE` toggles at the top right of chunks.
+The toggle at the start of the document controls the visibility of all chunks.
+
+```{r}
+#    This file is part of genefunnel-benchmarks.
+#    Copyright (C) 2024  Emir Turkes, UK DRI at UCL
+#
+#    This program is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+#    Emir Turkes can be contacted at emir.turkes@eturkes.com
+
+# Load required packages, suppressing startup messages.
+# -----------------------------------------------------
+library(conflicted)
+packages <- c("GSVA", "Rcpp", "Matrix", "ComplexHeatmap", "circlize")
+invisible(
+  suppressPackageStartupMessages(
+    lapply(packages, FUN = library, character.only = TRUE)
+  )
+)
+sourceCpp(file.path("..", "src", "calculateScores.cpp"))
+# -----------------------------------------------------
+
+# Define global settings.
+# -----------------------
+knitr::opts_chunk$set(fig.width = 7, fig.height = 7, dpi = 72)
+ht_opt$DIMNAME_PADDING = unit(3, units = "mm")
+# -----------------------
+
+# Useful variables.
+# -----------------
+cache_dir <- file.path("..", "cache")
+if (!dir.exists(cache_dir)) {
+  dir.create(cache_dir, recursive = TRUE)
+}
+# -----------------
+```
+
+# Simulated Scenarios
+
+```{r}
+vec <- c(rep(50, times = 10), rep(c(95, 5), times = 5), rep(100, times = 10))
+set.seed(1)
+noise <- round(runif(30, min = -4, max = 4))
+
+mat <- matrix(
+  vec + noise,
+  nrow =  10,
+  ncol = 3,
+  dimnames = list(
+    paste("Gene", toupper(letters[1:10])), c("Sample 1", "Sample 2", "Sample 3")
+  )
+)
+
+top_anno <- HeatmapAnnotation(
+  sample = anno_block(
+    gp = gpar(fill = "lightgray", col = "lightgray"),
+    labels = c("Sample 1", "Sample 2", "Sample 3"),
+    labels_gp = gpar(col = "black", fontsize = 15),
+    height = unit(10, "mm")
+  )
+)
+
+col_range <- c(min(mat), (min(mat) + max(mat)) / 2, max(mat))
+draw(
+  Heatmap(
+    mat,
+    name = "Gene Expression",
+    col = colorRamp2(col_range, colors = c("blue", "white", "red")),
+    cluster_rows = FALSE,
+    cluster_columns = FALSE,
+    show_column_names = FALSE,
+    top_annotation = top_anno,
+    column_split = seq(3),
+    column_title = "Hypothetical Raw Gene Count by Sample Matrix",
+    rect_gp = gpar(col = "black", lwd = 0.5),
+    column_gap = unit(1, units = "mm"),
+    row_names_gp = gpar(fontsize = 15),
+    column_title_gp = gpar(fontsize = 18),
+    row_names_side = "left",
+    heatmap_legend_param = list(
+      labels_gp = gpar(fontsize = 14), title_gp = gpar(fontsize = 15),
+      border = "lightgrey", title_position = "topcenter",
+      grid_height = unit(4, "mm"), direction = "horizontal"
+    )
+  ),
+  heatmap_legend_side = "top"
+)
+
+gene_sets <- list(
+  `Gene Set X` = rownames(mat), `Gene Set Y` = rownames(mat)[1:5]
+)
+gene_sets
+
+out <- vector("list", length = 6)
+names(out) <- c(
+  "GSVA", "ssGSEA", "ssGSEA Normalised", "PLAGE", "Z-score", "GeneFunnel"
+)
+
+tmp <- gsvaParam(mat, gene_sets)
+out[[1]] <- gsva(tmp, verbose = FALSE)
+
+tmp <- ssgseaParam(mat, gene_sets, normalize = FALSE)
+out[[2]] <- gsva(tmp, verbose = FALSE)
+
+tmp <- ssgseaParam(mat, gene_sets)
+out[[3]] <- gsva(tmp, verbose = FALSE)
+
+tmp <- zscoreParam(mat, gene_sets)
+out[[4]] <- gsva(tmp, verbose = FALSE)
+
+tmp <- plageParam(mat, gene_sets)
+out[[5]] <- gsva(tmp, verbose = FALSE)
+
+tmp <- Matrix(mat, sparse = TRUE)
+out[[6]] <- calculateScores(
+  tmp, row_names = rownames(tmp), gene_ids = gene_sets
+)
+colnames(out[[6]]) <- colnames(tmp)
+rownames(out[[6]]) <- names(gene_sets)
+```
+
+```{r, fig.width = 5, fig.height = 3}
+top_anno <- HeatmapAnnotation(
+  sample = anno_block(
+    gp = gpar(fill = "lightgray", col = "lightgray"),
+    labels = c("S1", "S2", "S3"),
+    labels_gp = gpar(col = "black", fontsize = 15),
+    height = unit(10, "mm")
+  )
+)
+
+for (i in seq_along(out)) {
+  col_range <- c(
+    min(out[[i]]), (min(out[[i]]) + max(out[[i]])) / 2, max(out[[i]])
+  )
+  if (!all(is.na(col_range))) {
+    ht <- draw(
+      Heatmap(
+        out[[i]],
+        name = "Gene Set Score",
+        col = colorRamp2(col_range, colors = c("blue", "white", "red")),
+        cluster_rows = FALSE,
+        cluster_columns = FALSE,
+        show_column_names = FALSE,
+        top_annotation = top_anno,
+        column_split = seq(3),
+        column_title = names(out)[[i]],
+        rect_gp = gpar(col = "black", lwd = 0.5),
+        column_gap = unit(1, units = "mm"),
+        row_names_gp = gpar(fontsize = 16),
+        column_title_gp = gpar(fontsize = 18),
+        row_names_side = "left",
+        heatmap_legend_param = list(
+          labels_gp = gpar(fontsize = 14), title_gp = gpar(fontsize = 15),
+          border = "lightgrey", title_position = "topcenter",
+          grid_height = unit(4, "mm"), direction = "horizontal"
+        )
+      ),
+      heatmap_legend_side = "top",
+    )
+    ht
+  } else {
+    ht <- draw(
+      Heatmap(
+        out[[i]],
+        name = "Gene Set Score",
+        cluster_rows = FALSE,
+        cluster_columns = FALSE,
+        show_column_names = FALSE,
+        top_annotation = top_anno,
+        column_split = seq(3),
+        column_title = names(out)[[i]],
+        rect_gp = gpar(col = "black", lwd = 0.5),
+        column_gap = unit(1, units = "mm"),
+        row_names_gp = gpar(fontsize = 16),
+        column_title_gp = gpar(fontsize = 18),
+        row_names_side = "left",
+        heatmap_legend_param = list(
+          labels_gp = gpar(fontsize = 14), title_gp = gpar(fontsize = 15),
+          border = "lightgrey", title_position = "topcenter",
+          grid_height = unit(4, "mm"), direction = "horizontal"
+        )
+      ),
+      heatmap_legend_side = "top",
+    )
+    ht
+  }
+}
+```
+
+# References
+
+This is the concluding section of the document, where we output the `sessionInfo`, and create a bibliography for works cited.
+
+```{r}
+sessionInfo()
+```
