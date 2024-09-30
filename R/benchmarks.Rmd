@@ -94,23 +94,29 @@ if (!dir.exists(cache_dir)) {
 # Simulated Scenarios
 
 ```{r}
-vec <- c(rep(50, times = 10), rep(c(95, 5), times = 5), rep(100, times = 10))
+vec <- c(
+  rep(50, times = 10),
+  rep(95, times = 5), rep(5, times = 5),
+  rep(95, times = 10),
+  rep(5, times = 10)
+)
 set.seed(1)
-noise <- round(runif(30, min = -4, max = 4))
+noise <- round(runif(40, min = -4, max = 4))
 
 mat <- matrix(
   vec + noise,
   nrow =  10,
-  ncol = 3,
+  ncol = 4,
   dimnames = list(
-    paste("Gene", toupper(letters[1:10])), c("Sample 1", "Sample 2", "Sample 3")
+    paste("Gene", toupper(letters[1:10])),
+    c("Sample 1", "Sample 2", "Sample 3", "Sample 4")
   )
 )
 
 top_anno <- HeatmapAnnotation(
   sample = anno_block(
     gp = gpar(fill = "lightgray", col = "lightgray"),
-    labels = c("Sample 1", "Sample 2", "Sample 3"),
+    labels = c("Sample 1", "Sample 2", "Sample 3", "Sample 4"),
     labels_gp = gpar(col = "black", fontsize = 15),
     height = unit(10, "mm")
   )
@@ -126,7 +132,7 @@ draw(
     cluster_columns = FALSE,
     show_column_names = FALSE,
     top_annotation = top_anno,
-    column_split = seq(3),
+    column_split = seq(4),
     column_title = "Hypothetical Raw Gene Count by Sample Matrix",
     rect_gp = gpar(col = "black", lwd = 0.5),
     column_gap = unit(1, units = "mm"),
@@ -143,7 +149,8 @@ draw(
 )
 
 gene_sets <- list(
-  `Gene Set X` = rownames(mat), `Gene Set Y` = rownames(mat)[1:5]
+    `Gene Set X` = rownames(mat),
+    `Gene Set Y` = rownames(mat)[1:5], `Gene Set Z` = rownames(mat)[6:10]
 )
 gene_sets
 
@@ -179,7 +186,7 @@ rownames(out[[6]]) <- names(gene_sets)
 top_anno <- HeatmapAnnotation(
   sample = anno_block(
     gp = gpar(fill = "lightgray", col = "lightgray"),
-    labels = c("S1", "S2", "S3"),
+    labels = c("S1", "S2", "S3", "S4"),
     labels_gp = gpar(col = "black", fontsize = 15),
     height = unit(10, "mm")
   )
@@ -199,7 +206,7 @@ for (i in seq_along(out)) {
         cluster_columns = FALSE,
         show_column_names = FALSE,
         top_annotation = top_anno,
-        column_split = seq(3),
+        column_split = seq(4),
         column_title = names(out)[[i]],
         rect_gp = gpar(col = "black", lwd = 0.5),
         column_gap = unit(1, units = "mm"),
@@ -224,7 +231,7 @@ for (i in seq_along(out)) {
         cluster_columns = FALSE,
         show_column_names = FALSE,
         top_annotation = top_anno,
-        column_split = seq(3),
+        column_split = seq(4),
         column_title = names(out)[[i]],
         rect_gp = gpar(col = "black", lwd = 0.5),
         column_gap = unit(1, units = "mm"),
