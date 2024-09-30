@@ -121,6 +121,10 @@ top_anno <- HeatmapAnnotation(
     height = unit(10, "mm")
   )
 )
+row_anno <- rowAnnotation(
+  gene_sets = anno_block(labels = c("Gene Set X", "Gene Set Y")),
+  empty = anno_empty(border = FALSE, width = unit(8, units = "mm"))
+)
 
 col_range <- c(min(mat), (min(mat) + max(mat)) / 2, max(mat))
 draw(
@@ -131,8 +135,11 @@ draw(
     cluster_rows = FALSE,
     cluster_columns = FALSE,
     show_column_names = FALSE,
+    row_title = NULL,
     top_annotation = top_anno,
+    right_annotation = row_anno,
     column_split = seq(4),
+    row_split = c(rep(1, times = 5), rep(2, times = 5)),
     column_title = "Hypothetical Raw Gene Count by Sample Matrix",
     rect_gp = gpar(col = "black", lwd = 0.5),
     column_gap = unit(1, units = "mm"),
@@ -148,11 +155,28 @@ draw(
   heatmap_legend_side = "top"
 )
 
-gene_sets <- list(
-    `Gene Set X` = rownames(mat),
-    `Gene Set Y` = rownames(mat)[1:5], `Gene Set Z` = rownames(mat)[6:10]
+seekViewport("annotation_empty_1")
+loc1 = deviceLoc(x = unit(0, "npc"), y = unit(0, "npc"))
+seekViewport("annotation_empty_2")
+loc2 = deviceLoc(x = unit(1, "npc"), y = unit(1, "npc"))
+
+seekViewport("global")
+grid.rect(
+  loc2$x * 0.96, (loc1$y + loc2$y) / 2,
+  width = loc2$x - loc1$x, height = loc2$y * 1.96,
+  just = c("left", "centre")
 )
-gene_sets
+grid.text(
+  "Gene Set Z", rot = 90,
+  x = (loc1$x + loc2$x) * 0.502, y = (loc1$y + loc2$y) * 0.5
+)
+```
+
+```{r, results = "hide"}
+gene_sets <- list(
+  `Gene Set X` = rownames(mat)[1:5], `Gene Set Y` = rownames(mat)[6:10],
+  `Gene Set Z` = rownames(mat)
+)
 
 out <- vector("list", length = 6)
 names(out) <- c(
