@@ -10,3 +10,6 @@ README.md
 nohup.out
 .Rproj.user
 genefunnel-benchmarks.Rproj
+cache
+R
+src
