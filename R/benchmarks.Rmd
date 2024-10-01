@@ -74,6 +74,7 @@ invisible(
   )
 )
 sourceCpp(file.path("..", "src", "calculateScores.cpp"))
+source("utils.R")
 # -----------------------------------------------------
 
 # Define global settings.
@@ -198,12 +199,7 @@ out[[4]] <- gsva(tmp, verbose = FALSE)
 tmp <- plageParam(mat, gene_sets)
 out[[5]] <- gsva(tmp, verbose = FALSE)
 
-tmp <- Matrix(mat, sparse = TRUE)
-out[[6]] <- calculateScores(
-  tmp, row_names = rownames(tmp), gene_ids = gene_sets
-)
-colnames(out[[6]]) <- colnames(tmp)
-rownames(out[[6]]) <- names(gene_sets)
+out[[6]] <- genefunnel(mat, gene_sets)
 ```
 
 ```{r, fig.width = 5, fig.height = 3}
