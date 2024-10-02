@@ -23,13 +23,17 @@ LABEL org.opencontainers.image.authors="Emir Turkes emir.turkes@eturkes.com"
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         zlib1g-dev \
+        libglpk40 \
     && Rscript -e "install.packages('flexdashboard')" \
         -e "install.packages('stringr')" \
         -e "install.packages('conflicted')" \
         -e "install.packages('shinyMatrix')" \
         -e "install.packages('RcppArmadillo')" \
+        -e "install.packages('Seurat')" \
         -e "install.packages('BiocManager')" \
         -e "BiocManager::install('ComplexHeatmap')" \
         -e "BiocManager::install('GSVA')" \
+        -e "BiocManager::install('splatter')" \
+        -e "BiocManager::install('scater')" \
     && rm -Rf /tmp/downloaded_packages/ \
         /tmp/*.rds

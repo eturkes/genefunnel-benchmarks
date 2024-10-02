@@ -67,14 +67,21 @@ The toggle at the start of the document controls the visibility of all chunks.
 # Load required packages, suppressing startup messages.
 # -----------------------------------------------------
 library(conflicted)
-packages <- c("GSVA", "Rcpp", "Matrix", "ComplexHeatmap", "circlize")
+conflicts_prefer(base::intersect, edgeR::cpm, .quiet = TRUE)
+packages <- c(
+  "GSVA", "Rcpp", "Matrix", "ComplexHeatmap", "circlize", "Seurat", "splatter",
+  "GSEABase", "scater", "edgeR"
+)
 invisible(
   suppressPackageStartupMessages(
     lapply(packages, FUN = library, character.only = TRUE)
   )
 )
+
 sourceCpp(file.path("..", "src", "calculateScores.cpp"))
 source("utils.R")
+
+`%notin%` <- Negate(`%in%`)
 # -----------------------------------------------------
 
 # Define global settings.
@@ -85,6 +92,7 @@ ht_opt$DIMNAME_PADDING = unit(3, units = "mm")
 
 # Useful variables.
 # -----------------
+data_dir <- file.path("..", "data")
 cache_dir <- file.path("..", "cache")
 if (!dir.exists(cache_dir)) {
   dir.create(cache_dir, recursive = TRUE)
@@ -258,6 +266,196 @@ for (i in seq_along(out)) {
         row_names_gp = gpar(fontsize = 16),
         column_title_gp = gpar(fontsize = 18),
         row_names_side = "left",
+        heatmap_legend_param = list(
+          labels_gp = gpar(fontsize = 14), title_gp = gpar(fontsize = 15),
+          border = "lightgrey", title_position = "topcenter",
+          grid_height = unit(4, "mm"), direction = "horizontal"
+        )
+      ),
+      heatmap_legend_side = "top",
+    )
+    ht
+  }
+}
+```
+
+# Simulated scRNAseq dataset
+
+```{r}
+rds <- file.path(cache_dir, "sim.rds")
+rds2 <- file.path(cache_dir, "seurat.rds")
+if (file.exists(rds)) {
+  sim <- readRDS(rds)
+  seurat <- readRDS(rds2)
+} else {
+  seurat <- readRDS(file.path(data_dir, "annotated_seurat.rds"))
+  DefaultAssay(seurat) <- "RNA"
+  seurat@active.ident <- seurat$ctype
+  seurat <- subset(
+    seurat,
+    idents = c("EX L2-4 CUX2", "EX L4-5 RORB", "EX L5 RORB", "EX L5-6 THEMIS")
+  )
+  seurat@active.ident <- seurat$tau
+  seurat <- subset(seurat, idents = "CTRL")
+  set.seed(1)
+  seurat <- seurat[ , sample(100)]
+
+  sim <- as.SingleCellExperiment(seurat)
+  counts(sim) <- as.matrix(counts(sim))
+
+  params <- splatEstimate(sim)
+  sim <- splatSimulate(
+    params, method = "groups", de.downProb = 0, verbose = FALSE,
+    group.prob = c(0.4, 0.3, 0.3),
+    de.prob = c(0, 0.02, 0.03),
+    de.facLoc = c(0, 0.5, 0.5),
+    de.facScale = c(0, 0.1, 0.5)
+  )
+  saveRDS(sim, file = rds)
+  saveRDS(seurat, file = rds2)
+}
+sim
+
+gene_sets <- readRDS(file.path(data_dir, "gene_sets.rds"))
+gene_sets
+
+gene_sets_immune <- gene_sets[grep("immun", names(gene_sets))]
+gene_sets_synapse <- gene_sets[grep("synap", names(gene_sets))]
+intersect <- intersect(
+  unique(unlist(geneIds(gene_sets_immune))),
+  unique(unlist(geneIds(gene_sets_synapse)))
+)
+gene_sets_immune_genes <- unique(unlist(geneIds(gene_sets_immune)))[
+  unique(unlist(geneIds(gene_sets_immune))) %notin% intersect
+]
+gene_sets_synapse_genes <- unique(unlist(geneIds(gene_sets_synapse)))[
+  unique(unlist(geneIds(gene_sets_synapse))) %notin% intersect
+]
+
+rownames <- rownames(sim)
+rownames[
+  which(rowData(sim)$DEFacGroup2 != 1)[seq_along(gene_sets_immune_genes)]
+] <- gene_sets_immune_genes
+rownames[
+  which(rowData(sim)$DEFacGroup3 != 1)[seq_along(gene_sets_synapse_genes)]
+] <- gene_sets_synapse_genes
+rownames[which(startsWith(rownames, "G"))] <- rownames(seurat)[
+  which(rownames(seurat) %notin% rownames)
+]
+rownames(sim) <- rownames
+
+sim <- sim[ , order(sim$Group)]
+
+sim <- logNormCounts(sim)
+sim <- runPCA(sim)
+plotPCA(sim, colour_by = "Group")
+
+sim
+```
+
+```{r, results = "hide"}
+rds <- file.path(cache_dir, "out.rds")
+if (file.exists(rds)) {
+  out <- readRDS(rds)
+} else {
+
+  out <- vector("list", length = 5)
+  names(out) <- c("GSVA", "ssGSEA", "PLAGE", "Z-score", "GeneFunnel")
+
+  tmp <- gsvaParam(counts(sim), gene_sets, kcdf = "Poisson")
+  out[[1]] <- gsva(tmp, verbose = FALSE)
+
+  tmp <- DGEList(counts(sim))
+  tmp$samples$group <- sim$Group
+  keep <- which(rowSums(tmp$counts) > 0)
+  tmp <- tmp[keep, , keep.lib.sizes = FALSE]
+  tmp <- calcNormFactors(tmp)
+  tmp <- voomLmFit(tmp)
+  tmp <- ssgseaParam(tmp$EList$E, gene_sets, normalize = FALSE)
+  out[[2]] <- gsva(tmp, verbose = FALSE)
+
+  # tmp <- zscoreParam(logcounts(sim), gene_sets)
+  # out[[3]] <- gsva(tmp, verbose = FALSE)
+
+  # tmp <- plageParam(logcounts(sim), gene_sets)
+  # out[[4]] <- gsva(tmp, verbose = FALSE)
+
+  out[[5]] <- genefunnel(counts(sim), geneIds(gene_sets))
+
+  saveRDS(out, file = rds)
+}
+```
+
+```{r, fig.width = 10}
+top_anno <- HeatmapAnnotation(
+  sample = anno_block(
+    gp = gpar(fill = "lightgray", col = "lightgray"),
+    labels = c("Group1", "Group2", "Group3"),
+    labels_gp = gpar(col = "black", fontsize = 15),
+    height = unit(10, "mm")
+  )
+)
+
+for (i in seq_along(out)) {
+  if (!is.null(out[[i]])) {
+    mat <- out[[i]][grep("immun", rownames(out[[i]])), ]
+    mat <- mat[1:20, ]
+    col_range <- c(min(mat), (min(mat) + max(mat)) / 2, max(mat))
+    ht <- draw(
+      Heatmap(
+        mat,
+        name = "Gene Set Score",
+        col = colorRamp2(col_range, colors = c("blue", "white", "red")),
+        cluster_rows = FALSE,
+        cluster_columns = FALSE,
+        show_column_names = FALSE,
+        top_annotation = top_anno,
+        column_split = sim$Group,
+        column_title = names(out)[[i]],
+        rect_gp = gpar(col = "black", lwd = 0.5),
+        column_gap = unit(1, units = "mm"),
+        row_names_gp = gpar(fontsize = 12),
+        column_title_gp = gpar(fontsize = 18),
+        row_names_side = "left",
+        row_names_max_width = max_text_width(
+          rownames(mat), gp = gpar(fontsize = 12)
+        ),
+        heatmap_legend_param = list(
+          labels_gp = gpar(fontsize = 14), title_gp = gpar(fontsize = 15),
+          border = "lightgrey", title_position = "topcenter",
+          grid_height = unit(4, "mm"), direction = "horizontal"
+        )
+      ),
+      heatmap_legend_side = "top",
+    )
+    ht
+  }
+}
+
+for (i in seq_along(out)) {
+  if (!is.null(out[[i]])) {
+    mat <- out[[i]][grep("synap", rownames(out[[i]])), ]
+    mat <- mat[1:20, ]
+    col_range <- c(min(mat), (min(mat) + max(mat)) / 2, max(mat))
+    ht <- draw(
+      Heatmap(
+        mat,
+        name = "Gene Set Score",
+        col = colorRamp2(col_range, colors = c("blue", "white", "red")),
+        cluster_rows = FALSE,
+        cluster_columns = FALSE,
+        show_column_names = FALSE,
+        top_annotation = top_anno,
+        column_split = sim$Group,
+        column_title = names(out)[[i]],
+        rect_gp = gpar(col = "black", lwd = 0.5),
+        column_gap = unit(1, units = "mm"),
+        row_names_gp = gpar(fontsize = 12),
+        column_title_gp = gpar(fontsize = 18),
+        row_names_side = "left",
+        row_names_max_width = max_text_width(
+          rownames(mat), gp = gpar(fontsize = 12)
+        ),
         heatmap_legend_param = list(
           labels_gp = gpar(fontsize = 14), title_gp = gpar(fontsize = 15),
           border = "lightgrey", title_position = "topcenter",
