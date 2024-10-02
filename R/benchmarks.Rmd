@@ -469,6 +469,108 @@ for (i in seq_along(out)) {
 }
 ```
 
+```{r, fig.width = 9}
+for (i in seq_along(out)) {
+  if (!is.null(out[[i]])) {
+    mat <- SingleCellExperiment(list(counts = out[[i]]))
+    mat$Group <- sim$Group
+
+    mat <- suppressWarnings(
+      aggregateAcrossCells(
+        mat, colData(mat)[ , "Group"],
+        use_exprs_values = "counts", statistics = "sum"
+      )
+    )
+
+    mat <- mat[grep("immun", rownames(mat)), ]
+    mat <- mat[1:20, ]
+    col_range <- c(
+      min(counts(mat)),
+      (min(counts(mat)) + max(counts(mat))) / 2,
+      max(counts(mat))
+    )
+    ht <- draw(
+      Heatmap(
+        counts(mat),
+        name = "Gene Set Score",
+        col = colorRamp2(col_range, colors = c("blue", "white", "red")),
+        cluster_rows = FALSE,
+        cluster_columns = FALSE,
+        show_column_names = FALSE,
+        top_annotation = top_anno,
+        column_split = mat$Group,
+        column_title = names(out)[[i]],
+        rect_gp = gpar(col = "black", lwd = 0.5),
+        column_gap = unit(1, units = "mm"),
+        row_names_gp = gpar(fontsize = 12),
+        column_title_gp = gpar(fontsize = 16),
+        row_names_side = "left",
+        row_names_max_width = max_text_width(
+          rownames(mat), gp = gpar(fontsize = 12)
+        ),
+        heatmap_legend_param = list(
+          labels_gp = gpar(fontsize = 10), title_gp = gpar(fontsize = 12),
+          border = "lightgrey", title_position = "topcenter",
+          grid_height = unit(4, "mm"), direction = "horizontal"
+        )
+      ),
+      heatmap_legend_side = "top",
+    )
+    ht
+  }
+}
+
+for (i in seq_along(out)) {
+  if (!is.null(out[[i]])) {
+    mat <- SingleCellExperiment(list(counts = out[[i]]))
+    mat$Group <- sim$Group
+
+    mat <- suppressWarnings(
+      aggregateAcrossCells(
+        mat, colData(mat)[ , "Group"],
+        use_exprs_values = "counts", statistics = "sum"
+      )
+    )
+
+    mat <- mat[grep("synap", rownames(mat)), ]
+    mat <- mat[1:20, ]
+    col_range <- c(
+      min(counts(mat)),
+      (min(counts(mat)) + max(counts(mat))) / 2,
+      max(counts(mat))
+    )
+    ht <- draw(
+      Heatmap(
+        counts(mat),
+        name = "Gene Set Score",
+        col = colorRamp2(col_range, colors = c("blue", "white", "red")),
+        cluster_rows = FALSE,
+        cluster_columns = FALSE,
+        show_column_names = FALSE,
+        top_annotation = top_anno,
+        column_split = mat$Group,
+        column_title = names(out)[[i]],
+        rect_gp = gpar(col = "black", lwd = 0.5),
+        column_gap = unit(1, units = "mm"),
+        row_names_gp = gpar(fontsize = 12),
+        column_title_gp = gpar(fontsize = 16),
+        row_names_side = "left",
+        row_names_max_width = max_text_width(
+          rownames(mat), gp = gpar(fontsize = 12)
+        ),
+        heatmap_legend_param = list(
+          labels_gp = gpar(fontsize = 10), title_gp = gpar(fontsize = 12),
+          border = "lightgrey", title_position = "topcenter",
+          grid_height = unit(4, "mm"), direction = "horizontal"
+        )
+      ),
+      heatmap_legend_side = "top",
+    )
+    ht
+  }
+}
+```
+
 # References
 
 This is the concluding section of the document, where we output the `sessionInfo`, and create a bibliography for works cited.
