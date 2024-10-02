@@ -386,13 +386,13 @@ if (file.exists(rds)) {
 }
 ```
 
-```{r, fig.width = 10}
+```{r, fig.width = 9}
 top_anno <- HeatmapAnnotation(
   sample = anno_block(
     gp = gpar(fill = "lightgray", col = "lightgray"),
     labels = c("Group1", "Group2", "Group3"),
-    labels_gp = gpar(col = "black", fontsize = 15),
-    height = unit(10, "mm")
+    labels_gp = gpar(col = "black", fontsize = 12),
+    height = unit(8, "mm")
   )
 )
 
@@ -415,13 +415,13 @@ for (i in seq_along(out)) {
         rect_gp = gpar(col = "black", lwd = 0.5),
         column_gap = unit(1, units = "mm"),
         row_names_gp = gpar(fontsize = 12),
-        column_title_gp = gpar(fontsize = 18),
+        column_title_gp = gpar(fontsize = 16),
         row_names_side = "left",
         row_names_max_width = max_text_width(
           rownames(mat), gp = gpar(fontsize = 12)
         ),
         heatmap_legend_param = list(
-          labels_gp = gpar(fontsize = 14), title_gp = gpar(fontsize = 15),
+          labels_gp = gpar(fontsize = 10), title_gp = gpar(fontsize = 12),
           border = "lightgrey", title_position = "topcenter",
           grid_height = unit(4, "mm"), direction = "horizontal"
         )
@@ -451,13 +451,13 @@ for (i in seq_along(out)) {
         rect_gp = gpar(col = "black", lwd = 0.5),
         column_gap = unit(1, units = "mm"),
         row_names_gp = gpar(fontsize = 12),
-        column_title_gp = gpar(fontsize = 18),
+        column_title_gp = gpar(fontsize = 16),
         row_names_side = "left",
         row_names_max_width = max_text_width(
           rownames(mat), gp = gpar(fontsize = 12)
         ),
         heatmap_legend_param = list(
-          labels_gp = gpar(fontsize = 14), title_gp = gpar(fontsize = 15),
+          labels_gp = gpar(fontsize = 10), title_gp = gpar(fontsize = 12),
           border = "lightgrey", title_position = "topcenter",
           grid_height = unit(4, "mm"), direction = "horizontal"
         )
