@@ -107,25 +107,27 @@ vec <- c(
   rep(50, times = 10),
   rep(95, times = 5), rep(5, times = 5),
   rep(95, times = 10),
-  rep(5, times = 10)
+  rep(5, times = 10),
+  c(c(9995, 9995, rep(5, times = 3)), c(9995, rep(5, times = 4)))
 )
 set.seed(1)
-noise <- round(runif(40, min = -4, max = 4))
+noise <- round(runif(50, min = -4, max = 4))
 
 mat <- matrix(
   vec + noise,
   nrow =  10,
-  ncol = 4,
+  ncol = 5,
   dimnames = list(
     paste("Gene", toupper(letters[1:10])),
-    c("Sample 1", "Sample 2", "Sample 3", "Sample 4")
+    c("Sample 1", "Sample 2", "Sample 3", "Sample 4", "Sample5")
   )
 )
+# mat <- log2(mat)
 
 top_anno <- HeatmapAnnotation(
   sample = anno_block(
     gp = gpar(fill = "lightgray", col = "lightgray"),
-    labels = c("Sample 1", "Sample 2", "Sample 3", "Sample 4"),
+    labels = c("Sample 1", "Sample 2", "Sample 3", "Sample 4", "Sample5"),
     labels_gp = gpar(col = "black", fontsize = 15),
     height = unit(10, "mm")
   )
@@ -147,7 +149,53 @@ draw(
     row_title = NULL,
     top_annotation = top_anno,
     right_annotation = row_anno,
-    column_split = seq(4),
+    column_split = seq(5),
+    row_split = c(rep(1, times = 5), rep(2, times = 5)),
+    column_title = "Hypothetical Raw Gene Count by Sample Matrix",
+    rect_gp = gpar(col = "black", lwd = 0.5),
+    column_gap = unit(1, units = "mm"),
+    row_names_gp = gpar(fontsize = 15),
+    column_title_gp = gpar(fontsize = 18),
+    row_names_side = "left",
+    heatmap_legend_param = list(
+      labels_gp = gpar(fontsize = 14), title_gp = gpar(fontsize = 15),
+      border = "lightgrey", title_position = "topcenter",
+      grid_height = unit(4, "mm"), direction = "horizontal"
+    )
+  ),
+  heatmap_legend_side = "top"
+)
+
+seekViewport("annotation_empty_1")
+loc1 = deviceLoc(x = unit(0, "npc"), y = unit(0, "npc"))
+seekViewport("annotation_empty_2")
+loc2 = deviceLoc(x = unit(1, "npc"), y = unit(1, "npc"))
+
+seekViewport("global")
+grid.rect(
+  loc2$x * 0.96, (loc1$y + loc2$y) / 2,
+  width = loc2$x - loc1$x, height = loc2$y * 1.96,
+  just = c("left", "centre")
+)
+grid.text(
+  "Gene Set Z", rot = 90,
+  x = (loc1$x + loc2$x) * 0.502, y = (loc1$y + loc2$y) * 0.5
+)
+
+log_mat <- log1p(mat)
+col_range <- c(min(log_mat), (min(log_mat) + max(log_mat)) / 2, max(log_mat))
+draw(
+  Heatmap(
+    log_mat,
+    name = "log1p Gene Expression",
+    col = colorRamp2(col_range, colors = c("blue", "white", "red")),
+    cluster_rows = FALSE,
+    cluster_columns = FALSE,
+    show_column_names = FALSE,
+    row_title = NULL,
+    top_annotation = top_anno,
+    right_annotation = row_anno,
+    column_split = seq(5),
     row_split = c(rep(1, times = 5), rep(2, times = 5)),
     column_title = "Hypothetical Raw Gene Count by Sample Matrix",
     rect_gp = gpar(col = "black", lwd = 0.5),
@@ -214,7 +262,7 @@ out[[6]] <- genefunnel(mat, gene_sets)
 top_anno <- HeatmapAnnotation(
   sample = anno_block(
     gp = gpar(fill = "lightgray", col = "lightgray"),
-    labels = c("S1", "S2", "S3", "S4"),
+    labels = c("S1", "S2", "S3", "S4", "S5"),
     labels_gp = gpar(col = "black", fontsize = 15),
     height = unit(10, "mm")
   )
@@ -234,7 +282,7 @@ for (i in seq_along(out)) {
         cluster_columns = FALSE,
         show_column_names = FALSE,
         top_annotation = top_anno,
-        column_split = seq(4),
+        column_split = seq(5),
         column_title = names(out)[[i]],
         rect_gp = gpar(col = "black", lwd = 0.5),
         column_gap = unit(1, units = "mm"),
@@ -259,7 +307,7 @@ for (i in seq_along(out)) {
         cluster_columns = FALSE,
         show_column_names = FALSE,
         top_annotation = top_anno,
-        column_split = seq(4),
+        column_split = seq(5),
         column_title = names(out)[[i]],
         rect_gp = gpar(col = "black", lwd = 0.5),
         column_gap = unit(1, units = "mm"),
@@ -281,12 +329,10 @@ for (i in seq_along(out)) {
 
 # Simulated scRNAseq dataset
 
-```{r}
+```{r, results = "hide"}
 rds <- file.path(cache_dir, "sim.rds")
-rds2 <- file.path(cache_dir, "seurat.rds")
 if (file.exists(rds)) {
   sim <- readRDS(rds)
-  seurat <- readRDS(rds2)
 } else {
   seurat <- readRDS(file.path(data_dir, "annotated_seurat.rds"))
   DefaultAssay(seurat) <- "RNA"
@@ -298,62 +344,42 @@ if (file.exists(rds)) {
   seurat@active.ident <- seurat$tau
   seurat <- subset(seurat, idents = "CTRL")
   set.seed(1)
-  seurat <- seurat[ , sample(100)]
+  seurat <- seurat[ , sample(ncol(seurat), 5000)]
+  gc()
 
   sim <- as.SingleCellExperiment(seurat)
   counts(sim) <- as.matrix(counts(sim))
-
   params <- splatEstimate(sim)
-  sim <- splatSimulate(
-    params, method = "groups", de.downProb = 0, verbose = FALSE,
-    group.prob = c(0.4, 0.3, 0.3),
-    de.prob = c(0, 0.02, 0.03),
-    de.facLoc = c(0, 0.5, 0.5),
-    de.facScale = c(0, 0.1, 0.5)
+
+  params <- setParam(params, name = "lib.loc", value = 20)
+  params <- setParam(params, name = "lib.scale", value = 0.5)
+  sim1 <- splatSimulate(params, verbose = FALSE)
+
+  params <- setParam(params, name = "lib.loc", value = 20)
+  params <- setParam(params, name = "lib.scale", value = 0.05)
+  sim2 <- splatSimulate(params, verbose = FALSE)
+
+  params <- setParam(params, name = "lib.loc", value = 20)
+  params <- setParam(params, name = "lib.scale", value = 5)
+  sim3 <- splatSimulate(params, verbose = FALSE)
+
+  sim <- cbind(sim1, sim2, sim3, deparse.level = 1)
+  sim$Group <- factor(
+    c(
+      rep("Group1", times = 5000),
+      rep("Group2", times = 5000),
+      rep("Group3", times = 5000)
+    )
   )
-  saveRDS(sim, file = rds)
-  saveRDS(seurat, file = rds2)
+  rownames(sim) <- rownames(seurat)
+
+  rm(sim1, sim2, sim3, seurat)
+  gc()
+  saveRDS(sim, file = rds, compress = FALSE)
 }
-sim
 
 gene_sets <- readRDS(file.path(data_dir, "gene_sets.rds"))
-gene_sets
 
-gene_sets_immune <- gene_sets[grep("immun", names(gene_sets))]
-gene_sets_synapse <- gene_sets[grep("synap", names(gene_sets))]
-intersect <- intersect(
-  unique(unlist(geneIds(gene_sets_immune))),
-  unique(unlist(geneIds(gene_sets_synapse)))
-)
-gene_sets_immune_genes <- unique(unlist(geneIds(gene_sets_immune)))[
-  unique(unlist(geneIds(gene_sets_immune))) %notin% intersect
-]
-gene_sets_synapse_genes <- unique(unlist(geneIds(gene_sets_synapse)))[
-  unique(unlist(geneIds(gene_sets_synapse))) %notin% intersect
-]
-
-rownames <- rownames(sim)
-rownames[
-  which(rowData(sim)$DEFacGroup2 != 1)[seq_along(gene_sets_immune_genes)]
-] <- gene_sets_immune_genes
-rownames[
-  which(rowData(sim)$DEFacGroup3 != 1)[seq_along(gene_sets_synapse_genes)]
-] <- gene_sets_synapse_genes
-rownames[which(startsWith(rownames, "G"))] <- rownames(seurat)[
-  which(rownames(seurat) %notin% rownames)
-]
-rownames(sim) <- rownames
-
-sim <- sim[ , order(sim$Group)]
-
-sim <- logNormCounts(sim)
-sim <- runPCA(sim)
-plotPCA(sim, colour_by = "Group")
-
-sim
-```
-
-```{r, results = "hide"}
 rds <- file.path(cache_dir, "out.rds")
 if (file.exists(rds)) {
   out <- readRDS(rds)
@@ -362,17 +388,17 @@ if (file.exists(rds)) {
   out <- vector("list", length = 5)
   names(out) <- c("GSVA", "ssGSEA", "PLAGE", "Z-score", "GeneFunnel")
 
-  tmp <- gsvaParam(counts(sim), gene_sets, kcdf = "Poisson")
-  out[[1]] <- gsva(tmp, verbose = FALSE)
-
-  tmp <- DGEList(counts(sim))
-  tmp$samples$group <- sim$Group
-  keep <- which(rowSums(tmp$counts) > 0)
-  tmp <- tmp[keep, , keep.lib.sizes = FALSE]
-  tmp <- calcNormFactors(tmp)
-  tmp <- voomLmFit(tmp)
-  tmp <- ssgseaParam(tmp$EList$E, gene_sets, normalize = FALSE)
-  out[[2]] <- gsva(tmp, verbose = FALSE)
+  # tmp <- gsvaParam(counts(sim), gene_sets, kcdf = "Poisson")
+  # out[[1]] <- gsva(tmp, verbose = FALSE)
+  # 
+  # tmp <- DGEList(counts(sim))
+  # tmp$samples$group <- sim$Group
+  # keep <- which(rowSums(tmp$counts) > 0)
+  # tmp <- tmp[keep, , keep.lib.sizes = FALSE]
+  # tmp <- calcNormFactors(tmp)
+  # tmp <- voomLmFit(tmp)
+  # tmp <- ssgseaParam(tmp$EList$E, gene_sets, normalize = FALSE)
+  # out[[2]] <- gsva(tmp, verbose = FALSE)
 
   # tmp <- zscoreParam(logcounts(sim), gene_sets)
   # out[[3]] <- gsva(tmp, verbose = FALSE)
@@ -398,55 +424,33 @@ top_anno <- HeatmapAnnotation(
 
 for (i in seq_along(out)) {
   if (!is.null(out[[i]])) {
-    mat <- out[[i]][grep("immun", rownames(out[[i]])), ]
-    mat <- mat[1:20, ]
-    col_range <- c(min(mat), (min(mat) + max(mat)) / 2, max(mat))
-    ht <- draw(
-      Heatmap(
-        mat,
-        name = "Gene Set Score",
-        col = colorRamp2(col_range, colors = c("blue", "white", "red")),
-        cluster_rows = FALSE,
-        cluster_columns = FALSE,
-        show_column_names = FALSE,
-        top_annotation = top_anno,
-        column_split = sim$Group,
-        column_title = names(out)[[i]],
-        rect_gp = gpar(col = "black", lwd = 0.5),
-        column_gap = unit(1, units = "mm"),
-        row_names_gp = gpar(fontsize = 12),
-        column_title_gp = gpar(fontsize = 16),
-        row_names_side = "left",
-        row_names_max_width = max_text_width(
-          rownames(mat), gp = gpar(fontsize = 12)
-        ),
-        heatmap_legend_param = list(
-          labels_gp = gpar(fontsize = 10), title_gp = gpar(fontsize = 12),
-          border = "lightgrey", title_position = "topcenter",
-          grid_height = unit(4, "mm"), direction = "horizontal"
-        )
-      ),
-      heatmap_legend_side = "top",
-    )
-    ht
-  }
-}
+    mat <- SingleCellExperiment(list(counts = out[[i]]))
+    mat$Group <- sim$Group
 
-for (i in seq_along(out)) {
-  if (!is.null(out[[i]])) {
-    mat <- out[[i]][grep("synap", rownames(out[[i]])), ]
+    mat <- suppressWarnings(
+      aggregateAcrossCells(
+        mat, colData(mat)[ , "Group"],
+        use_exprs_values = "counts", statistics = "sum"
+      )
+    )
+    col_range <- c(
+      min(counts(mat)),
+      (min(counts(mat)) + max(counts(mat))) / 2,
+      max(counts(mat))
+    )
+
+    mat <- mat[order(rowMeans(counts(mat)), decreasing = TRUE), ]
     mat <- mat[1:20, ]
-    col_range <- c(min(mat), (min(mat) + max(mat)) / 2, max(mat))
     ht <- draw(
       Heatmap(
-        mat,
+        counts(mat),
         name = "Gene Set Score",
         col = colorRamp2(col_range, colors = c("blue", "white", "red")),
         cluster_rows = FALSE,
         cluster_columns = FALSE,
         show_column_names = FALSE,
         top_annotation = top_anno,
-        column_split = sim$Group,
+        column_split = mat$Group,
         column_title = names(out)[[i]],
         rect_gp = gpar(col = "black", lwd = 0.5),
         column_gap = unit(1, units = "mm"),
@@ -469,105 +473,92 @@ for (i in seq_along(out)) {
 }
 ```
 
-```{r, fig.width = 9}
-for (i in seq_along(out)) {
-  if (!is.null(out[[i]])) {
-    mat <- SingleCellExperiment(list(counts = out[[i]]))
-    mat$Group <- sim$Group
+```{r, fig.width = 6, fig.height = 4}
+gse_plot <- rownames(mat)
 
-    mat <- suppressWarnings(
-      aggregateAcrossCells(
-        mat, colData(mat)[ , "Group"],
-        use_exprs_values = "counts", statistics = "sum"
-      )
-    )
+sim_aggr <- suppressWarnings(
+  aggregateAcrossCells(
+    sim, colData(sim)[ , "Group"],
+    use_exprs_values = "counts", statistics = "sum"
+  )
+)
+col_range <- c(
+  min(counts(sim_aggr)),
+  (min(counts(sim_aggr)) + max(counts(sim_aggr))) / 2,
+  max(counts(sim_aggr))
+)
 
-    mat <- mat[grep("immun", rownames(mat)), ]
-    mat <- mat[1:20, ]
-    col_range <- c(
-      min(counts(mat)),
-      (min(counts(mat)) + max(counts(mat))) / 2,
-      max(counts(mat))
-    )
-    ht <- draw(
-      Heatmap(
-        counts(mat),
-        name = "Gene Set Score",
-        col = colorRamp2(col_range, colors = c("blue", "white", "red")),
-        cluster_rows = FALSE,
-        cluster_columns = FALSE,
-        show_column_names = FALSE,
-        top_annotation = top_anno,
-        column_split = mat$Group,
-        column_title = names(out)[[i]],
-        rect_gp = gpar(col = "black", lwd = 0.5),
-        column_gap = unit(1, units = "mm"),
-        row_names_gp = gpar(fontsize = 12),
-        column_title_gp = gpar(fontsize = 16),
-        row_names_side = "left",
-        row_names_max_width = max_text_width(
-          rownames(mat), gp = gpar(fontsize = 12)
-        ),
-        heatmap_legend_param = list(
-          labels_gp = gpar(fontsize = 10), title_gp = gpar(fontsize = 12),
-          border = "lightgrey", title_position = "topcenter",
-          grid_height = unit(4, "mm"), direction = "horizontal"
-        )
+for (gse in gse_plot) {
+  genes <- unlist(geneIds(gene_sets[names(gene_sets) %in% gse]))
+  mat <- sim_aggr[rownames(sim_aggr) %in% genes, ]
+  ht <- draw(
+    Heatmap(
+      counts(mat),
+      name = "Raw Gene Expression",
+      col = colorRamp2(col_range, colors = c("blue", "white", "red")),
+      cluster_rows = FALSE,
+      cluster_columns = FALSE,
+      show_column_names = FALSE,
+      show_row_names = FALSE,
+      top_annotation = top_anno,
+      column_split = mat$Group,
+      column_title = gse,
+      rect_gp = gpar(col = "black", lwd = 0.5),
+      column_gap = unit(1, units = "mm"),
+      column_title_gp = gpar(fontsize = 12),
+      row_names_side = "left",
+      row_names_max_width = max_text_width(
+        rownames(mat), gp = gpar(fontsize = 12)
       ),
-      heatmap_legend_side = "top",
-    )
-    ht
-  }
+      heatmap_legend_param = list(
+        labels_gp = gpar(fontsize = 10), title_gp = gpar(fontsize = 12),
+        border = "lightgrey", title_position = "topcenter",
+        grid_height = unit(4, "mm"), direction = "horizontal"
+      )
+    ),
+    heatmap_legend_side = "top",
+  )
+  ht
 }
 
-for (i in seq_along(out)) {
-  if (!is.null(out[[i]])) {
-    mat <- SingleCellExperiment(list(counts = out[[i]]))
-    mat$Group <- sim$Group
+logcounts(sim_aggr) <- log1p(counts(sim_aggr))
+col_range <- c(
+  min(logcounts(sim_aggr)),
+  (min(logcounts(sim_aggr)) + max(logcounts(sim_aggr))) / 2,
+  max(logcounts(sim_aggr))
+)
 
-    mat <- suppressWarnings(
-      aggregateAcrossCells(
-        mat, colData(mat)[ , "Group"],
-        use_exprs_values = "counts", statistics = "sum"
-      )
-    )
-
-    mat <- mat[grep("synap", rownames(mat)), ]
-    mat <- mat[1:20, ]
-    col_range <- c(
-      min(counts(mat)),
-      (min(counts(mat)) + max(counts(mat))) / 2,
-      max(counts(mat))
-    )
-    ht <- draw(
-      Heatmap(
-        counts(mat),
-        name = "Gene Set Score",
-        col = colorRamp2(col_range, colors = c("blue", "white", "red")),
-        cluster_rows = FALSE,
-        cluster_columns = FALSE,
-        show_column_names = FALSE,
-        top_annotation = top_anno,
-        column_split = mat$Group,
-        column_title = names(out)[[i]],
-        rect_gp = gpar(col = "black", lwd = 0.5),
-        column_gap = unit(1, units = "mm"),
-        row_names_gp = gpar(fontsize = 12),
-        column_title_gp = gpar(fontsize = 16),
-        row_names_side = "left",
-        row_names_max_width = max_text_width(
-          rownames(mat), gp = gpar(fontsize = 12)
-        ),
-        heatmap_legend_param = list(
-          labels_gp = gpar(fontsize = 10), title_gp = gpar(fontsize = 12),
-          border = "lightgrey", title_position = "topcenter",
-          grid_height = unit(4, "mm"), direction = "horizontal"
-        )
+for (gse in gse_plot) {
+  genes <- unlist(geneIds(gene_sets[names(gene_sets) %in% gse]))
+  mat <- sim_aggr[rownames(sim_aggr) %in% genes, ]
+  ht <- draw(
+    Heatmap(
+      logcounts(mat),
+      name = "log1p Gene Expression",
+      # col = colorRamp2(col_range, colors = c("blue", "white", "red")),
+      cluster_rows = FALSE,
+      cluster_columns = FALSE,
+      show_column_names = FALSE,
+      show_row_names = FALSE,
+      top_annotation = top_anno,
+      column_split = mat$Group,
+      column_title = gse,
+      rect_gp = gpar(col = "black", lwd = 0.5),
+      column_gap = unit(1, units = "mm"),
+      column_title_gp = gpar(fontsize = 12),
+      row_names_side = "left",
+      row_names_max_width = max_text_width(
+        rownames(mat), gp = gpar(fontsize = 12)
       ),
-      heatmap_legend_side = "top",
-    )
-    ht
-  }
+      heatmap_legend_param = list(
+        labels_gp = gpar(fontsize = 10), title_gp = gpar(fontsize = 12),
+        border = "lightgrey", title_position = "topcenter",
+        grid_height = unit(4, "mm"), direction = "horizontal"
+      )
+    ),
+    heatmap_legend_side = "top",
+  )
+  ht
 }
 ```
 
