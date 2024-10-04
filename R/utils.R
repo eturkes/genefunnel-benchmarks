@@ -24,9 +24,9 @@ genefunnel <- function(mat, gene_sets) {
     mat <- Matrix(mat, sparse = TRUE)
   }
 
-  score_matrix <- calculateScores(mat, rownames(mat), gene_sets)
-  rownames(score_matrix) <- names(gene_sets)
-  colnames(score_matrix) <- colnames(mat)
+  scores <- calculateScores(mat, rownames(mat), gene_sets)
+  rownames(scores) <- names(gene_sets)
+  colnames(scores) <- colnames(mat)
 
-  return(score_matrix)
+  return(scores)
 }
