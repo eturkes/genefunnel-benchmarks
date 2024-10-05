@@ -119,7 +119,6 @@ mat <- matrix(
     c("Sample 1", "Sample 2", "Sample 3", "Sample 4", "Sample5")
   )
 )
-# mat <- log2(mat)
 
 top_anno <- HeatmapAnnotation(
   sample = anno_block(
