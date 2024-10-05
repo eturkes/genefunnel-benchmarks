@@ -365,8 +365,6 @@ if (file.exists(rds)) {
 }
 
 gene_sets <- readRDS(file.path(data_dir, "gene_sets.rds"))
-keep <- filterGeneSets(gene_sets, min.sz = 2, max.sz = 50)
-gene_sets <- gene_sets[names(gene_sets) %in% names(keep)]
 
 sim <- suppressWarnings(
   aggregateAcrossCells(
