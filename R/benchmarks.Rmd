@@ -235,27 +235,22 @@ gene_sets <- list(
   `Gene Set Z` = rownames(mat)
 )
 
-out <- vector("list", length = 6)
-names(out) <- c(
-  "GSVA", "ssGSEA", "ssGSEA Normalised", "PLAGE", "Z-score", "GeneFunnel"
-)
+out <- vector("list", length = 5)
+names(out) <- c("GSVA", "ssGSEA", "PLAGE", "Z-score", "GeneFunnel")
 
-tmp <- gsvaParam(mat, gene_sets)
+tmp <- gsvaParam(mat, gene_sets, kcdf = "Poisson")
 out[[1]] <- gsva(tmp, verbose = FALSE)
 
-tmp <- ssgseaParam(mat, gene_sets, normalize = FALSE)
+tmp <- ssgseaParam(log2(mat), gene_sets, normalize = FALSE)
 out[[2]] <- gsva(tmp, verbose = FALSE)
 
-tmp <- ssgseaParam(mat, gene_sets)
+tmp <- zscoreParam(log2(mat), gene_sets)
 out[[3]] <- gsva(tmp, verbose = FALSE)
 
-tmp <- zscoreParam(mat, gene_sets)
+tmp <- plageParam(log2(mat), gene_sets)
 out[[4]] <- gsva(tmp, verbose = FALSE)
 
-tmp <- plageParam(mat, gene_sets)
-out[[5]] <- gsva(tmp, verbose = FALSE)
-
-out[[6]] <- genefunnel(mat, gene_sets)
+out[[5]] <- genefunnel(mat, gene_sets)
 ```
 
 ```{r, fig.width = 5, fig.height = 3}
