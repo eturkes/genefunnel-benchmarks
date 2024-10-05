@@ -411,7 +411,7 @@ if (file.exists(rds)) {
 }
 ```
 
-```{r, fig.width = 9, fig.height = 5}
+```{r, fig.width = 9, fig.height = 7}
 top_anno <- HeatmapAnnotation(
   sample = anno_block(
     gp = gpar(fill = "lightgray", col = "lightgray"),
@@ -432,11 +432,9 @@ for (i in seq_along(out)) {
     )
 
     tmp <- mat[order(counts(mat[ , 1]), decreasing = TRUE), ]
-    rownames <- rownames(tmp)[1:4]
-    tmp <- mat[order(counts(mat[ , 2]), decreasing = TRUE), ]
-    rownames <- c(rownames, rownames(tmp)[1:4])
-    tmp <- mat[order(counts(mat[ , 3]), decreasing = TRUE), ]
-    rownames <- c(rownames, rownames(tmp)[1:4])
+    rownames <- rownames(tmp)[1:20]
+    tmp <- mat[order(counts(mat[ , 1]), decreasing = FALSE), ]
+    rownames <- c(rownames, rownames(tmp)[1:5])
     mat <- mat[rownames(mat) %in% rownames, ]
     mat <- mat[match(rownames, rownames(mat)), ]
     ht <- draw(
