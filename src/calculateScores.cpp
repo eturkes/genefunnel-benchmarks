@@ -63,7 +63,7 @@ NumericMatrix calculateScores(
         var_value += fabs(idx_values[i] - leave_one_out_mean);
       }
 
-      double score = log(total_sum + 1) - log((var_value / 2) + 1);
+      double score = log(total_sum + 1) - (log(var_value + 1) / 2);
       double epsilon = 1e-9;
       if (fabs(score) < epsilon) {
         score = 0.0;
