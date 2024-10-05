@@ -69,8 +69,8 @@ The toggle at the start of the document controls the visibility of all chunks.
 library(conflicted)
 conflicts_prefer(base::intersect, edgeR::cpm, .quiet = TRUE)
 packages <- c(
-  "GSVA", "Rcpp", "Matrix", "ComplexHeatmap", "circlize", "Seurat", "splatter",
-  "GSEABase", "scater", "edgeR"
+  "GSVA", "Rcpp", "Matrix", "ComplexHeatmap", "circlize", "Seurat", "GSEABase",
+  "edgeR", "SingleCellExperiment", "scuttle"
 )
 invisible(
   suppressPackageStartupMessages(
@@ -330,9 +330,11 @@ for (i in seq_along(out)) {
 # Simulated scRNAseq dataset
 
 ```{r, results = "hide"}
-rds <- file.path(cache_dir, "sim.rds")
+rds <- file.path(cache_dir, "gene_anno.rds")
+rds2 <- file.path(cache_dir, "sim.rds")
 if (file.exists(rds)) {
-  sim <- readRDS(rds)
+  gene_anno <- readRDS(rds)
+  sim <- readRDS(rds2)
 } else {
   seurat <- readRDS(file.path(data_dir, "annotated_seurat.rds"))
   DefaultAssay(seurat) <- "RNA"
@@ -343,42 +345,48 @@ if (file.exists(rds)) {
   )
   seurat@active.ident <- seurat$tau
   seurat <- subset(seurat, idents = "CTRL")
-  set.seed(1)
-  seurat <- seurat[ , sample(ncol(seurat), 5000)]
   gc()
 
-  sim <- as.SingleCellExperiment(seurat)
-  counts(sim) <- as.matrix(counts(sim))
-  params <- splatEstimate(sim)
-
-  params <- setParam(params, name = "lib.loc", value = 20)
-  params <- setParam(params, name = "lib.scale", value = 0.5)
-  sim1 <- splatSimulate(params, verbose = FALSE)
-
-  params <- setParam(params, name = "lib.loc", value = 20)
-  params <- setParam(params, name = "lib.scale", value = 0.05)
-  sim2 <- splatSimulate(params, verbose = FALSE)
-
-  params <- setParam(params, name = "lib.loc", value = 20)
-  params <- setParam(params, name = "lib.scale", value = 5)
-  sim3 <- splatSimulate(params, verbose = FALSE)
-
+  sim1 <- SingleCellExperiment(
+    list(counts = GetAssayData(seurat, layer = "counts"))
+  )
+  sim2 <- sim1
+  sim3 <- sim1
   sim <- cbind(sim1, sim2, sim3, deparse.level = 1)
+
+  ncol <- ncol(seurat)
   sim$Group <- factor(
     c(
-      rep("Group1", times = 5000),
-      rep("Group2", times = 5000),
-      rep("Group3", times = 5000)
+      rep("Group1", times = ncol),
+      rep("Group2", times = ncol),
+      rep("Group3", times = ncol)
     )
   )
-  rownames(sim) <- rownames(seurat)
+
+  gene_anno <- data.frame(
+    symbol = unlist(seurat@misc), ensembl = rownames(seurat)
+  )
 
   rm(sim1, sim2, sim3, seurat)
   gc()
-  saveRDS(sim, file = rds, compress = FALSE)
+  saveRDS(gene_anno, file = rds)
+  saveRDS(sim, file = rds2)
 }
 
 gene_sets <- readRDS(file.path(data_dir, "gene_sets.rds"))
+
+sim <- suppressWarnings(
+  aggregateAcrossCells(
+    sim, colData(sim)[ , "Group"],
+    use_exprs_values = "counts", statistics = "sum"
+  )
+)
+
+mat <- counts(sim)
+mean <- mean(mat[ , 1])
+mat[ , 2] <- rep(mean, times = nrow(mat))
+mat[ , 3] <- rep(c(mean / 4, mean * 4), times = nrow(mat) / 2)
+counts(sim) <- mat
 
 rds <- file.path(cache_dir, "out.rds")
 if (file.exists(rds)) {
@@ -412,7 +420,7 @@ if (file.exists(rds)) {
 }
 ```
 
-```{r, fig.width = 9}
+```{r, fig.width = 9, fig.height = 5}
 top_anno <- HeatmapAnnotation(
   sample = anno_block(
     gp = gpar(fill = "lightgray", col = "lightgray"),
@@ -426,21 +434,20 @@ for (i in seq_along(out)) {
   if (!is.null(out[[i]])) {
     mat <- SingleCellExperiment(list(counts = out[[i]]))
     mat$Group <- sim$Group
-
-    mat <- suppressWarnings(
-      aggregateAcrossCells(
-        mat, colData(mat)[ , "Group"],
-        use_exprs_values = "counts", statistics = "sum"
-      )
-    )
     col_range <- c(
       min(counts(mat)),
       (min(counts(mat)) + max(counts(mat))) / 2,
       max(counts(mat))
     )
 
-    mat <- mat[order(rowMeans(counts(mat)), decreasing = TRUE), ]
-    mat <- mat[1:20, ]
+    tmp <- mat[order(counts(mat[ , 1]), decreasing = TRUE), ]
+    rownames <- rownames(tmp)[1:5]
+    tmp <- mat[order(counts(mat[ , 2]), decreasing = TRUE), ]
+    rownames <- c(rownames, rownames(tmp)[1:5])
+    tmp <- mat[order(counts(mat[ , 3]), decreasing = TRUE), ]
+    rownames <- c(rownames, rownames(tmp)[1:5])
+    mat <- mat[rownames(mat) %in% rownames, ]
+    mat <- mat[match(rownames, rownames(mat)), ]
     ht <- draw(
       Heatmap(
         counts(mat),
@@ -473,24 +480,22 @@ for (i in seq_along(out)) {
 }
 ```
 
-```{r, fig.width = 6, fig.height = 4}
-gse_plot <- rownames(mat)
+```{r, fig.width = 6, fig.height = 7}
+ht_opt$DIMNAME_PADDING = unit(2, units = "mm")
 
-sim_aggr <- suppressWarnings(
-  aggregateAcrossCells(
-    sim, colData(sim)[ , "Group"],
-    use_exprs_values = "counts", statistics = "sum"
-  )
-)
 col_range <- c(
-  min(counts(sim_aggr)),
-  (min(counts(sim_aggr)) + max(counts(sim_aggr))) / 2,
-  max(counts(sim_aggr))
+  min(counts(sim)),
+  (min(counts(sim)) + max(counts(sim))) / 2,
+  max(counts(sim))
 )
 
+gse_plot <- rownames(mat)
 for (gse in gse_plot) {
   genes <- unlist(geneIds(gene_sets[names(gene_sets) %in% gse]))
-  mat <- sim_aggr[rownames(sim_aggr) %in% genes, ]
+  mat <- sim[rownames(sim) %in% genes, ]
+  gene_anno_sub <- gene_anno[gene_anno$ensembl %in% rownames(mat), ]
+  gene_anno_sub <- gene_anno_sub[match(rownames(mat), gene_anno_sub$ensembl), ]
+  rownames(mat) <- gene_anno_sub$symbol
   ht <- draw(
     Heatmap(
       counts(mat),
@@ -499,17 +504,14 @@ for (gse in gse_plot) {
       cluster_rows = FALSE,
       cluster_columns = FALSE,
       show_column_names = FALSE,
-      show_row_names = FALSE,
       top_annotation = top_anno,
       column_split = mat$Group,
       column_title = gse,
       rect_gp = gpar(col = "black", lwd = 0.5),
       column_gap = unit(1, units = "mm"),
+      row_names_gp = gpar(fontsize = 9),
       column_title_gp = gpar(fontsize = 12),
       row_names_side = "left",
-      row_names_max_width = max_text_width(
-        rownames(mat), gp = gpar(fontsize = 12)
-      ),
       heatmap_legend_param = list(
         labels_gp = gpar(fontsize = 10), title_gp = gpar(fontsize = 12),
         border = "lightgrey", title_position = "topcenter",
@@ -521,35 +523,35 @@ for (gse in gse_plot) {
   ht
 }
 
-logcounts(sim_aggr) <- log1p(counts(sim_aggr))
+logcounts(sim) <- log1p(counts(sim))
 col_range <- c(
-  min(logcounts(sim_aggr)),
-  (min(logcounts(sim_aggr)) + max(logcounts(sim_aggr))) / 2,
-  max(logcounts(sim_aggr))
+  min(logcounts(sim)),
+  (min(logcounts(sim)) + max(logcounts(sim))) / 2,
+  max(logcounts(sim))
 )
 
 for (gse in gse_plot) {
   genes <- unlist(geneIds(gene_sets[names(gene_sets) %in% gse]))
-  mat <- sim_aggr[rownames(sim_aggr) %in% genes, ]
+  mat <- sim[rownames(sim) %in% genes, ]
+  gene_anno_sub <- gene_anno[gene_anno$ensembl %in% rownames(mat), ]
+  gene_anno_sub <- gene_anno_sub[match(rownames(mat), gene_anno_sub$ensembl), ]
+  rownames(mat) <- gene_anno_sub$symbol
   ht <- draw(
     Heatmap(
       logcounts(mat),
       name = "log1p Gene Expression",
-      # col = colorRamp2(col_range, colors = c("blue", "white", "red")),
+      col = colorRamp2(col_range, colors = c("blue", "white", "red")),
       cluster_rows = FALSE,
       cluster_columns = FALSE,
       show_column_names = FALSE,
-      show_row_names = FALSE,
       top_annotation = top_anno,
       column_split = mat$Group,
       column_title = gse,
       rect_gp = gpar(col = "black", lwd = 0.5),
       column_gap = unit(1, units = "mm"),
+      row_names_gp = gpar(fontsize = 9),
       column_title_gp = gpar(fontsize = 12),
       row_names_side = "left",
-      row_names_max_width = max_text_width(
-        rownames(mat), gp = gpar(fontsize = 12)
-      ),
       heatmap_legend_param = list(
         labels_gp = gpar(fontsize = 10), title_gp = gpar(fontsize = 12),
         border = "lightgrey", title_position = "topcenter",
