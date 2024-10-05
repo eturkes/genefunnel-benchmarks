@@ -432,11 +432,11 @@ for (i in seq_along(out)) {
     )
 
     tmp <- mat[order(counts(mat[ , 1]), decreasing = TRUE), ]
-    rownames <- rownames(tmp)[1:5]
+    rownames <- rownames(tmp)[1:4]
     tmp <- mat[order(counts(mat[ , 2]), decreasing = TRUE), ]
-    rownames <- c(rownames, rownames(tmp)[1:5])
+    rownames <- c(rownames, rownames(tmp)[1:4])
     tmp <- mat[order(counts(mat[ , 3]), decreasing = TRUE), ]
-    rownames <- c(rownames, rownames(tmp)[1:5])
+    rownames <- c(rownames, rownames(tmp)[1:4])
     mat <- mat[rownames(mat) %in% rownames, ]
     mat <- mat[match(rownames, rownames(mat)), ]
     ht <- draw(
@@ -471,48 +471,8 @@ for (i in seq_along(out)) {
 }
 ```
 
-```{r, fig.width = 6, fig.height = 7}
+```{r, fig.width = 7, fig.height = 7}
 ht_opt$DIMNAME_PADDING = unit(2, units = "mm")
-
-col_range <- c(
-  min(counts(sim)),
-  (min(counts(sim)) + max(counts(sim))) / 2,
-  max(counts(sim))
-)
-
-gse_plot <- rownames(mat)
-for (gse in gse_plot) {
-  genes <- unlist(geneIds(gene_sets[names(gene_sets) %in% gse]))
-  mat <- sim[rownames(sim) %in% genes, ]
-  gene_anno_sub <- gene_anno[gene_anno$ensembl %in% rownames(mat), ]
-  gene_anno_sub <- gene_anno_sub[match(rownames(mat), gene_anno_sub$ensembl), ]
-  rownames(mat) <- gene_anno_sub$symbol
-  ht <- draw(
-    Heatmap(
-      counts(mat),
-      name = "Raw Gene Expression",
-      col = colorRamp2(col_range, colors = c("blue", "white", "red")),
-      cluster_rows = FALSE,
-      cluster_columns = FALSE,
-      show_column_names = FALSE,
-      top_annotation = top_anno,
-      column_split = mat$Group,
-      column_title = gse,
-      rect_gp = gpar(col = "black", lwd = 0.5),
-      column_gap = unit(1, units = "mm"),
-      row_names_gp = gpar(fontsize = 9),
-      column_title_gp = gpar(fontsize = 12),
-      row_names_side = "left",
-      heatmap_legend_param = list(
-        labels_gp = gpar(fontsize = 10), title_gp = gpar(fontsize = 12),
-        border = "lightgrey", title_position = "topcenter",
-        grid_height = unit(4, "mm"), direction = "horizontal"
-      )
-    ),
-    heatmap_legend_side = "top",
-  )
-  ht
-}
 
 logcounts(sim) <- log1p(counts(sim))
 col_range <- c(
@@ -521,6 +481,7 @@ col_range <- c(
   max(logcounts(sim))
 )
 
+gse_plot <- rownames(mat)
 for (gse in gse_plot) {
   genes <- unlist(geneIds(gene_sets[names(gene_sets) %in% gse]))
   mat <- sim[rownames(sim) %in% genes, ]
