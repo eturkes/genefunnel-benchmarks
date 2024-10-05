@@ -105,16 +105,13 @@ if (!dir.exists(cache_dir)) {
 ```{r}
 vec <- c(
   rep(50, times = 10),
-  rep(95, times = 5), rep(5, times = 5),
-  rep(95, times = 10),
-  rep(5, times = 10),
-  c(c(9995, 9995, rep(5, times = 3)), c(9995, rep(5, times = 4)))
+  rep(100, times = 5), rep(1, times = 5),
+  rep(100, times = 10),
+  rep(1, times = 10),
+  c(c(10000, 10000, rep(1, times = 3)), c(10000, rep(1, times = 4)))
 )
-set.seed(1)
-noise <- round(runif(50, min = -4, max = 4))
-
 mat <- matrix(
-  vec + noise,
+  vec,
   nrow =  10,
   ncol = 5,
   dimnames = list(
