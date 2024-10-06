@@ -70,7 +70,7 @@ library(conflicted)
 conflicts_prefer(base::intersect, edgeR::cpm, .quiet = TRUE)
 packages <- c(
   "GSVA", "Rcpp", "Matrix", "ComplexHeatmap", "circlize", "Seurat", "GSEABase",
-  "edgeR", "SingleCellExperiment", "scuttle"
+  "edgeR", "SingleCellExperiment", "scuttle", "BiocParallel", "parallelly"
 )
 invisible(
   suppressPackageStartupMessages(
@@ -237,21 +237,23 @@ names(out) <- c(
 )
 
 tmp <- gsvaParam(mat, gene_sets, kcdf = "Poisson")
-out[[1]] <- gsva(tmp, verbose = FALSE)
+out[[1]] <- gsva(tmp, BPPARAM = MulticoreParam(availableCores()))
 
 tmp <- gsvaParam(log2(mat + 1), gene_sets, kcdf = "Gaussian")
-out[[2]] <- gsva(tmp, verbose = FALSE)
+out[[2]] <- gsva(tmp, BPPARAM = MulticoreParam(availableCores()))
 
 tmp <- ssgseaParam(log2(mat + 1), gene_sets)
-out[[3]] <- gsva(tmp, verbose = FALSE)
+out[[3]] <- gsva(tmp, BPPARAM = MulticoreParam(availableCores()))
 
 tmp <- zscoreParam(log2(mat + 1), gene_sets)
-out[[4]] <- gsva(tmp, verbose = FALSE)
+out[[4]] <- gsva(tmp, BPPARAM = MulticoreParam(availableCores()))
 
 tmp <- plageParam(log2(mat + 1), gene_sets)
-out[[5]] <- gsva(tmp, verbose = FALSE)
+out[[5]] <- gsva(tmp, BPPARAM = MulticoreParam(availableCores()))
 
-out[[6]] <- genefunnel(mat, gene_sets)
+out[[6]] <- genefunnel(
+  mat, gene_sets, BPPARAM = MulticoreParam(availableCores())
+)
 ```
 
 ```{r, fig.width = 5, fig.height = 3}
@@ -466,21 +468,23 @@ if (file.exists(rds)) {
   )
 
   tmp <- gsvaParam(counts(sim), gene_sets, kcdf = "Poisson")
-  out[[1]] <- gsva(tmp, verbose = FALSE)
+  out[[1]] <- gsva(tmp, BPPARAM = MulticoreParam(availableCores()))
 
   tmp <- gsvaParam(logcounts(sim), gene_sets, kcdf = "Gaussian")
-  out[[2]] <- gsva(tmp, verbose = FALSE)
+  out[[2]] <- gsva(tmp, BPPARAM = MulticoreParam(availableCores()))
 
   tmp <- ssgseaParam(logcounts(sim), gene_sets)
-  out[[3]] <- gsva(tmp, verbose = FALSE)
+  out[[3]] <- gsva(tmp, BPPARAM = MulticoreParam(availableCores()))
 
   tmp <- zscoreParam(logcounts(sim), gene_sets)
-  out[[4]] <- gsva(tmp, verbose = FALSE)
+  out[[4]] <- gsva(tmp, BPPARAM = MulticoreParam(availableCores()))
 
   tmp <- plageParam(logcounts(sim), gene_sets)
-  out[[5]] <- gsva(tmp, verbose = FALSE)
+  out[[5]] <- gsva(tmp, BPPARAM = MulticoreParam(availableCores()))
 
-  out[[6]] <- genefunnel(counts(sim), geneIds(gene_sets))
+  out[[6]] <- genefunnel(
+    counts(sim), geneIds(gene_sets), BPPARAM = MulticoreParam(availableCores())
+  )
 
   saveRDS(out, file = rds)
 }

@@ -18,13 +18,21 @@
 
 # This file holds common functions and methods.
 
-genefunnel <- function(mat, gene_sets) {
+genefunnel <- function(mat, gene_sets, BPPARAM = bpparam()) {
 
   if (!inherits(mat, "sparseMatrix")) {
     mat <- Matrix(mat, sparse = TRUE)
   }
 
-  scores <- calculateScores(mat, rownames(mat), gene_sets)
+  result <- bplapply(
+    seq_len(ncol(mat)),
+    function(i) {
+      calculateScores(mat[, i, drop = FALSE], rownames(mat), gene_sets)
+    },
+    BPPARAM = BPPARAM
+  )
+
+  scores <- do.call(cbind, result)
   rownames(scores) <- names(gene_sets)
   colnames(scores) <- colnames(mat)
 
