@@ -380,7 +380,8 @@ sim <- sim[rownames(sim) %in% unlist(geneIds(gene_sets)), ]
 sim <- suppressWarnings(
   aggregateAcrossCells(
     sim, colData(sim)[ , "Group"],
-    use_exprs_values = "counts", statistics = "sum"
+    use_exprs_values = "counts", statistics = "sum",
+    BPPARAM = MulticoreParam(availableCores())
   )
 )
 
@@ -1136,7 +1137,8 @@ for (i in seq_along(out)) {
     out[[i]] <- suppressWarnings(
       aggregateAcrossCells(
         mat, colData(sim)[ , "Group"],
-        use_exprs_values = "counts", statistics = "sum"
+        use_exprs_values = "counts", statistics = "sum",
+        BPPARAM = MulticoreParam(availableCores())
       )
     )
     out[[i]] <- counts(out[[i]])
@@ -1146,7 +1148,8 @@ for (i in seq_along(out)) {
 sim <- suppressWarnings(
   aggregateAcrossCells(
     sim, colData(sim)[ , "Group"],
-    use_exprs_values = "counts", statistics = "sum"
+    use_exprs_values = "counts", statistics = "sum",
+    BPPARAM = MulticoreParam(availableCores())
   )
 )
 ```
