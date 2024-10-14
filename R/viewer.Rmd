@@ -164,22 +164,22 @@ shinyApp(
       numeric_mat <- apply(input$mat, MARGIN = 2, FUN = as.numeric)
       heatmap_mat <- matrix(
         c(
-          sum(numeric_mat[ , 1], na.rm = TRUE) * 2 -
+          sum(numeric_mat[ , 1], na.rm = TRUE) -
             sum(
               abs(numeric_mat[ , 1] - mean(numeric_mat[ , 1], na.rm = TRUE)),
               na.rm = TRUE
             ),
-          sum(numeric_mat[ , 2], na.rm = TRUE) * 2 -
+          sum(numeric_mat[ , 2], na.rm = TRUE) -
             sum(
               abs(numeric_mat[ , 2] - mean(numeric_mat[ , 2], na.rm = TRUE)),
               na.rm = TRUE
             ),
-          sum(numeric_mat[ , 3], na.rm = TRUE) * 2 -
+          sum(numeric_mat[ , 3], na.rm = TRUE) -
             sum(
               abs(numeric_mat[ , 3] - mean(numeric_mat[ , 3], na.rm = TRUE)),
               na.rm = TRUE
             ),
-          sum(numeric_mat[ , 4], na.rm = TRUE) * 2 -
+          sum(numeric_mat[ , 4], na.rm = TRUE) -
             sum(
               abs(numeric_mat[ , 4] - mean(numeric_mat[ , 4], na.rm = TRUE)),
               na.rm = TRUE
@@ -194,7 +194,7 @@ shinyApp(
         text = anno_text(
           c(
             paste0(
-              "\n\n\n\nSum = ", sum(numeric_mat[ , 1], na.rm = TRUE) * 2,
+              "\n\n\n\nSum = ", sum(numeric_mat[ , 1], na.rm = TRUE),
               "\nMean = ", mean(numeric_mat[ , 1], na.rm = TRUE),
               "\nVar = ", round(
                 sum(
@@ -205,7 +205,7 @@ shinyApp(
                 ),
                 digits = 1
               ),
-              "\nScore = ", sum(numeric_mat[ , 1], na.rm = TRUE) * 2 -
+              "\nScore = ", sum(numeric_mat[ , 1], na.rm = TRUE) -
                 sum(
                   abs(
                     numeric_mat[ , 1] - mean(numeric_mat[ , 1], na.rm = TRUE)
@@ -214,7 +214,7 @@ shinyApp(
                 )
             ),
             paste0(
-              "\n\n\n\nSum = ", sum(numeric_mat[ , 2], na.rm = TRUE) * 2,
+              "\n\n\n\nSum = ", sum(numeric_mat[ , 2], na.rm = TRUE),
               "\nMean = ", mean(numeric_mat[ , 2], na.rm = TRUE),
               "\nVar = ", round(
                 sum(
@@ -225,7 +225,7 @@ shinyApp(
                 ),
                 digits = 1
               ),
-              "\nScore = ", sum(numeric_mat[ , 2], na.rm = TRUE) * 2 -
+              "\nScore = ", sum(numeric_mat[ , 2], na.rm = TRUE) -
                 sum(
                   abs(
                     numeric_mat[ , 2] - mean(numeric_mat[ , 2], na.rm = TRUE)
@@ -234,7 +234,7 @@ shinyApp(
                 )
             ),
             paste0(
-              "\n\n\n\nSum = ", sum(numeric_mat[ , 3], na.rm = TRUE) * 2,
+              "\n\n\n\nSum = ", sum(numeric_mat[ , 3], na.rm = TRUE),
               "\nMean = ", mean(numeric_mat[ , 3], na.rm = TRUE),
                "\nVar = ", round(
                 sum(
@@ -245,7 +245,7 @@ shinyApp(
                 ),
                 digits = 1
               ),
-              "\nScore = ", sum(numeric_mat[ , 3], na.rm = TRUE) * 2 -
+              "\nScore = ", sum(numeric_mat[ , 3], na.rm = TRUE) -
                 sum(
                   abs(
                     numeric_mat[ , 3] - mean(numeric_mat[ , 3], na.rm = TRUE)
@@ -254,7 +254,7 @@ shinyApp(
                 )
             ),
             paste0(
-              "\n\n\n\nSum = ", sum(numeric_mat[ , 4], na.rm = TRUE) * 2,
+              "\n\n\n\nSum = ", sum(numeric_mat[ , 4], na.rm = TRUE),
               "\nMean = ", mean(numeric_mat[ , 4], na.rm = TRUE),
               "\nVar = ", round(
                 sum(
@@ -265,7 +265,7 @@ shinyApp(
                 ),
                 digits = 1
               ),
-              "\nScore = ", sum(numeric_mat[ , 4], na.rm = TRUE) * 2 -
+              "\nScore = ", sum(numeric_mat[ , 4], na.rm = TRUE) -
                 sum(
                   abs(
                     numeric_mat[ , 4] - mean(numeric_mat[ , 4], na.rm = TRUE)
