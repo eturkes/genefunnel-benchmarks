@@ -4,7 +4,6 @@ output:
   flexdashboard::flex_dashboard:
     source_code: embed
     orientation: rows
-    vertical_layout: fill
     runtime: shiny
 ---
 
@@ -65,7 +64,10 @@ ht_opt$DIMNAME_PADDING = unit(3, units = "mm")
 Algorithm Overview
 ===
 
-## Algorithm Overview
+Row {data-height=400}
+---
+
+### Algorithm Overview
 
 - GeneFunnel is a tool for gene set enrichment (or feature set scoring to generalise the concept), falling in the class of methods known as single-sample GSEA (ssGSEA).  
 - It takes a matrix of genes/proteins (generally referred to as features) and samples, for example the output of an (sc)RNAseq or mass-spectrometry proteomics experiment.  
@@ -84,7 +86,10 @@ $$
 \text{score}_{k,j} = 2 \times \sum_{i \in G_k} X_{i,j} - \sum_{i \in G_k} \left| X_{i,j} - \bar{X}_{G_k,j} \right|
 $$
 
-## Shiny App
+Row {data-height=600}
+---
+
+### Interactive Example
 
 ```{r}
 shinyApp(
