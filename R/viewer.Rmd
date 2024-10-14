@@ -67,7 +67,7 @@ Algorithm Overview
 Row {data-height=400}
 ---
 
-### Algorithm Overview
+### About GeneFunnel
 
 - GeneFunnel is a tool for gene set enrichment (or feature set scoring to generalise the concept), falling in the class of methods known as single-sample GSEA (ssGSEA).  
 - It takes a matrix of genes/proteins (generally referred to as features) and samples, for example the output of an (sc)RNAseq or mass-spectrometry proteomics experiment.  
@@ -90,6 +90,9 @@ Row {data-height=600}
 ---
 
 ### Interactive Example
+
+> A contrived scenario of genes and samples with the resulting GeneFunnel scoring on the right and associated metrics.
+> Try editing some values to see it update in real-time!
 
 ```{r}
 shinyApp(
