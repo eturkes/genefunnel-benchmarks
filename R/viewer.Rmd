@@ -43,13 +43,13 @@ top_anno <- HeatmapAnnotation(
 
 vec <- c(
   rep(50, times = 10), rep(c(97, 3), times = 5),
-  rep(100, times = 10), rep(101, times = 5), rep(NA, times = 5)
+  rep(100, times = 10), rep(100, times = 5), rep(NA, times = 5)
 )
 set.seed(1)
 noise1 <- round(runif(20, min = -4, max = 4))
 noise2 <- noise1[1:10] * 2
-set.seed(1)
-noise3 <- round(runif(10, min = -4, max = 4))
+set.seed(100)
+noise3 <- sample(noise2)
 
 default_mat <- matrix(
   vec + c(noise1, noise2, noise3),
