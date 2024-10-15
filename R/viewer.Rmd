@@ -35,31 +35,39 @@ lapply(packages, FUN = library, character.only = TRUE)
 top_anno <- HeatmapAnnotation(
   sample = anno_block(
     gp = gpar(fill = "lightgray", col = "lightgray"),
-    labels = c("Sample 1", "Sample 2", "Sample 3", "Sample 4"),
+    labels = c("Sample 1", "Sample 2", "Sample 3", "Sample 4", "Sample 5"),
     labels_gp = gpar(col = "black", fontsize = 15),
     height = unit(10, "mm")
   )
 )
 
 vec <- c(
-  rep(50, times = 10), rep(c(90, 10), times = 5),
-  rep(100, times = 10), rep(107, times = 5), rep(NA, times = 5)
+  rep(50, times = 10),
+  c(90, 10, 90, 10, 90, 90, 10, 10, 90, 10),
+  rep(100, times = 10),
+  rep(100, times = 5), rep(0, times = 5),
+  rep(100, times = 5), rep(NA, times = 5)
 )
 set.seed(4)
 noise1 <- round(runif(10, min = -5, max = 5))
 noise1[1] <- 2
 noise2 <- noise1 * 2
-noise3 <- noise2
-set.seed(100)
-noise4 <- round(runif(10, min = -20, max = 20))
+noise2[1] <- -90
+noise2[3] <- noise2[3] + 42
+noise2[5] <- noise2[5] + 42
+noise2[7] <- noise2[7] + 10
+noise2 <- noise2[c(1:5, 7, 6, 8:10)]
+noise3 <- noise1 * 2
+noise4 <- rep(0, times = 10)
+noise5 <- noise4
 
 default_mat <- matrix(
-  vec + c(noise1, noise2, noise3, noise4),
+  vec + c(noise1, noise2, noise3, noise4, noise5),
   nrow =  10,
-  ncol = 4,
+  ncol = 5,
   dimnames = list(
     paste("Gene", toupper(letters[1:10])),
-    c("Sample 1", "Sample 2", "Sample 3", "Sample 4")
+    c("Sample1", "Sample2", "Sample3", "Sample4", "Sample5")
   )
 )
 
@@ -103,7 +111,7 @@ Row {data-height=755}
 ```{r}
 shinyApp(
   ui = fluidPage(
-    sidebarPanel(
+    mainPanel(
       width = 3,
       tags$h3(
         HTML("⮦ Click Cells to Edit Matrix ⮧"), style = "text-align:center"
@@ -116,11 +124,11 @@ shinyApp(
     ),
     mainPanel(
       width = 4,
-      plotOutput("gene_heatmap", height = "450px")
+      plotOutput("gene_heatmap", height = "400px")
     ),
     mainPanel(
       width = 5,
-      plotOutput("gse_heatmap", height = "450px")
+      plotOutput("gse_heatmap", height = "400px")
     )
   ),
   server = function(input, output, session) {
@@ -144,7 +152,7 @@ shinyApp(
           cluster_columns = FALSE,
           show_column_names = FALSE,
           top_annotation = top_anno,
-          column_split = seq(4),
+          column_split = seq(5),
           column_title = "Hypothetical Raw Gene Count by Sample Matrix",
           rect_gp = gpar(col = "black", lwd = 0.5),
           column_gap = unit(1, units = "mm"),
@@ -184,10 +192,15 @@ shinyApp(
             sum(
               abs(numeric_mat[ , 4] - mean(numeric_mat[ , 4], na.rm = TRUE)),
               na.rm = TRUE
+            ),
+          sum(numeric_mat[ , 5], na.rm = TRUE) -
+            sum(
+              abs(numeric_mat[ , 5] - mean(numeric_mat[ , 5], na.rm = TRUE)),
+              na.rm = TRUE
             )
         ),
         nrow =  1,
-        ncol = 4,
+        ncol = 5,
         dimnames = list("Gene Set X  \n(Genes A to J)")
       )
 
@@ -273,6 +286,26 @@ shinyApp(
                   ),
                   na.rm = TRUE
                 )
+            ),
+            paste0(
+              "\n\n\n\nSum = ", sum(numeric_mat[ , 5], na.rm = TRUE),
+              "\nMean = ", mean(numeric_mat[ , 5], na.rm = TRUE),
+              "\nVar = ", round(
+                sum(
+                  abs(
+                    numeric_mat[ , 5] - mean(numeric_mat[ , 5], na.rm = TRUE)
+                  ),
+                  na.rm = TRUE
+                ),
+                digits = 1
+              ),
+              "\nScore = ", sum(numeric_mat[ , 5], na.rm = TRUE) -
+                sum(
+                  abs(
+                    numeric_mat[ , 5] - mean(numeric_mat[ , 5], na.rm = TRUE)
+                  ),
+                  na.rm = TRUE
+                )
             )
           ),
           rot = 0,
@@ -297,7 +330,7 @@ shinyApp(
           show_column_names = FALSE,
           top_annotation = top_anno,
           bottom_annotation = bottom_anno,
-          column_split = seq(4),
+          column_split = seq(5),
           column_title = "Resulting Gene Set Enrichment by Sample Matrix",
           rect_gp = gpar(col = "black", lwd = 0.5),
           column_gap = unit(1, units = "mm"),
@@ -312,7 +345,7 @@ shinyApp(
           )
         ),
         heatmap_legend_side = "top",
-        padding = unit(c(90, 2, 2, 2), units = "mm")
+        padding = unit(c(75, 2, 2, 2), units = "mm")
       )
     })
   }
