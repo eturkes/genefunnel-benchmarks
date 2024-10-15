@@ -69,32 +69,33 @@ ht_opt$DIMNAME_PADDING = unit(3, units = "mm")
 Algorithm Overview
 ===
 
-Row {data-height=400}
+Row {data-height=300}
 ---
 
-### About GeneFunnel
+### About GeneFunnel {.no-title}
 
-- GeneFunnel is a tool for gene set enrichment (or feature set scoring to generalise the concept), falling in the class of methods known as single-sample GSEA (ssGSEA).  
-- It takes a matrix of genes/proteins (generally referred to as features) and samples, for example the output of an (sc)RNAseq or mass-spectrometry proteomics experiment.  
-- A list, where each element is a set of genes (or any feature matching those in the input matrix) with a name for the set, is also provided.  
-- A common example of such kind of list are those provided by the Gene Ontology (GO), whose aim is to group together genes into functionally related sets.  
-- The algorithm iterates through samples in the matrix, where for each sample, the feature list is iterated through.  
-- For each set in the list, the matrix is subset to the matching features and scored.  
-- Conceptually, scoring takes the sum of the matching features, then adjusts the sum based on the deviance of each feature from the mean of the matching features.  
-- Specifically, the measure of deviance is taken by subtracting the value of each feature from the mean of matched features, taking the absolute value, then summing all of the deviance values.  
-- The absolute value is neccessary as many features will have values lower than the mean, and we are interested in any deviance whether positive or negative.  
-- The summed deviance is then substracted from the overall sum, however, the overall sum is first multipled by 2.  
-- This is to ensure that the final score is a positive value and provides the property that a maximally deviant set will simply produce a score equal to the sum of features, while a minimally deviant set will produce a score equal to twice the sum of features.  
-- This algorithm expressed mathematically is provided below:  
+GeneFunnel is a tool for gene set enrichment (or feature set scoring to generalise the concept), falling in the class of methods known as single-sample GSEA (ssGSEA).
+It takes a matrix of genes/proteins (generally referred to as features) and samples, for example the output of an (sc)RNAseq or mass-spectrometry proteomics experiment.
+A list, where each element is a set of genes (or any feature matching those in the input matrix) with a name for the set, is also provided.
+A common example of such kind of list are those provided by the Gene Ontology (GO), whose aim is to group together genes into functionally related sets.  
+  
+The algorithm iterates through samples in the matrix, where for each sample, the feature list is iterated through.
+For each set in the list, the matrix is subset to the matching features and scored.
+Conceptually, scoring takes the sum of the matching features, then adjusts the sum based on the deviance of each feature from the mean of the matching features.
+Specifically, the measure of deviance is taken by subtracting the value of each feature from the mean of matched features, taking the absolute value, then summing all of the deviance values.
+The absolute value is neccessary as many features will have values lower than the mean, and we are interested in any deviance whether positive or negative.
+The summed deviance is then substracted from the overall sum, however, the overall sum is first multipled by 2.
+This is to ensure that the final score is a positive value and provides the property that a maximally deviant set will simply produce a score equal to the sum of features, while a minimally deviant set will produce a score equal to twice the sum of features.
+This algorithm expressed mathematically is provided below:
 
 $$
 \text{score}_{k,j} = 2 \times \sum_{i \in G_k} X_{i,j} - \sum_{i \in G_k} \left| X_{i,j} - \bar{X}_{G_k,j} \right|
 $$
 
-Row {data-height=600}
+Row {data-height=755}
 ---
 
-### Interactive Example
+### Interactive Example {.no-title}
 
 > A contrived scenario of genes and samples with the resulting GeneFunnel scoring on the right and associated metrics.
 > Try editing some values to see it update in real-time!
