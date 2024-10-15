@@ -28,9 +28,13 @@ output:
 
 library(conflicted)
 packages <- c(
-  "shinyMatrix", "ComplexHeatmap", "circlize"
+  "Rcpp", "Matrix", "shinyMatrix", "ComplexHeatmap", "circlize", "GSVA",
+  "BiocParallel", "parallelly", "cowplot", "knitr", "kableExtra"
 )
 lapply(packages, FUN = library, character.only = TRUE)
+
+sourceCpp(file.path("..", "src", "calculateScores.cpp"))
+source("utils.R")
 
 top_anno <- HeatmapAnnotation(
   sample = anno_block(
@@ -39,6 +43,33 @@ top_anno <- HeatmapAnnotation(
     labels_gp = gpar(col = "black", fontsize = 15),
     height = unit(10, "mm")
   )
+)
+top_anno2 <- HeatmapAnnotation(
+  sample = anno_block(
+    gp = gpar(fill = "lightgray", col = "lightgray"),
+    labels = c("Sample 1", "Sample 2", "Sample 3", "Sample 4"),
+    labels_gp = gpar(col = "black", fontsize = 15),
+    height = unit(10, "mm")
+  )
+)
+top_anno3 <- HeatmapAnnotation(
+  sample = anno_block(
+    gp = gpar(fill = "lightgray", col = "lightgray"),
+    labels = c("S1", "S2", "S3", "S4"),
+    labels_gp = gpar(col = "black", fontsize = 15),
+    height = unit(10, "mm")
+  )
+)
+row_anno <- rowAnnotation(
+  gene_sets = anno_block(labels = c("Gene Set X", "Gene Set Y")),
+  empty = anno_empty(border = FALSE, width = unit(8, units = "mm"))
+)
+
+colnames <- c(
+  "------Sample 1",
+  "------Sample 2",
+  "------Sample 3",
+  "------Sample 4"
 )
 
 vec <- c(
@@ -70,8 +101,13 @@ default_mat <- matrix(
     c("Sample1", "Sample2", "Sample3", "Sample4", "Sample5")
   )
 )
+gene_sets <- list(
+  `Gene Set X` = rownames(default_mat)[1:5],
+  `Gene Set Y` = rownames(default_mat)[6:10],
+  `Gene Set Z` = rownames(default_mat)
+)
 
-ht_opt$DIMNAME_PADDING = unit(3, units = "mm")
+ht_opt$DIMNAME_PADDING <- unit(3, units = "mm")
 ```
 
 Algorithm Overview
@@ -146,7 +182,7 @@ shinyApp(
       draw(
         Heatmap(
           heatmap_mat,
-          name = "Gene Expression",
+          name = "Raw Gene Counts",
           col = colorRamp2(col_range, colors = c("blue", "white", "red")),
           cluster_rows = FALSE,
           cluster_columns = FALSE,
@@ -162,7 +198,7 @@ shinyApp(
           heatmap_legend_param = list(
             labels_gp = gpar(fontsize = 14), title_gp = gpar(fontsize = 15),
             border = "lightgrey", title_position = "topcenter",
-            grid_height = unit(4, "mm"), direction = "horizontal"
+            grid_height = unit(4, units = "mm"), direction = "horizontal"
           )
         ),
         heatmap_legend_side = "top"
@@ -341,7 +377,7 @@ shinyApp(
           heatmap_legend_param = list(
             labels_gp = gpar(fontsize = 14), title_gp = gpar(fontsize = 15),
             border = "lightgrey", title_position = "topcenter",
-            grid_height = unit(4, "mm"), direction = "horizontal"
+            grid_height = unit(4, units = "mm"), direction = "horizontal"
           )
         ),
         heatmap_legend_side = "top",
@@ -352,7 +388,218 @@ shinyApp(
 )
 ```
 
+Comparison with Other Methods
+===
+
+Row {data-height=500}
+---
+
+### Example Matrix {.no-title}
+
+```{r}
+mat <- default_mat[ , 1:4]
+
+col_range <- c(min(mat), (min(mat) + max(mat)) / 2, max(mat))
+draw(
+  Heatmap(
+    mat,
+    name = "Raw Gene Counts",
+    col = colorRamp2(col_range, colors = c("blue", "white", "red")),
+    cluster_rows = FALSE,
+    cluster_columns = FALSE,
+    show_column_names = FALSE,
+    row_title = NULL,
+    top_annotation = top_anno2,
+    right_annotation = row_anno,
+    column_split = seq(4),
+    row_split = c(rep(1, times = 5), rep(2, times = 5)),
+    column_title = "Hypothetical Raw Gene Count by Sample Matrix",
+    rect_gp = gpar(col = "black", lwd = 0.5),
+    column_gap = unit(1, units = "mm"),
+    row_names_gp = gpar(fontsize = 15),
+    column_title_gp = gpar(fontsize = 16),
+    row_names_side = "left",
+    heatmap_legend_param = list(
+      labels_gp = gpar(fontsize = 14), title_gp = gpar(fontsize = 15),
+      border = "lightgrey", title_position = "topcenter",
+      grid_height = unit(4, units = "mm"), direction = "horizontal"
+    )
+  ),
+  heatmap_legend_side = "top"
+)
+
+seekViewport("annotation_empty_1")
+loc1 = deviceLoc(x = unit(0, "npc"), y = unit(0, "npc"))
+seekViewport("annotation_empty_2")
+loc2 = deviceLoc(x = unit(1, "npc"), y = unit(1, "npc"))
+
+seekViewport("global")
+grid.rect(
+  loc2$x * 0.95, (loc1$y + loc2$y) / 2,
+  width = loc2$x - loc1$x, height = loc2$y * 1.93,
+  just = c("left", "centre")
+)
+grid.text(
+  "Gene Set Z", rot = 90,
+  x = (loc1$x + loc2$x) * 0.501, y = (loc1$y + loc2$y) * 0.5
+)
+```
+
+### Background {.no-title}
+
+> On this page, the hypothetical gene count matrix shown left is compared across 5 different single-sample GSEA methods and GeneFunnel.  
+>  
+> The gene count matrix is the same as the one in Algorithm Overview except the last sample is excluded because most of the methods cannot handle NaN values.  
+>  
+> Three types of gene sets are considered, as annotated on the right-hand side of the count matrix: the first 5 genes, the last 5 genes, and all 10 genes.  
+>  
+> Heatmaps for each method is shown in the bottom-left and to the right are the raw numerical output tables.
+
+```{r}
+```
+
+Row {data-height=555}
+---
+
+### Gene Set Scoring {.no-title}
+
+```{r, results = "hide"}
+out <- vector("list", length = 6)
+names(out) <- c(
+  "GSVA Poisson", "GSVA Gaussian", "ssGSEA", "PLAGE", "Z-score", "GeneFunnel"
+)
+
+tmp <- gsvaParam(mat, gene_sets, kcdf = "Poisson")
+out[[1]] <- gsva(tmp, BPPARAM = MulticoreParam(availableCores()))
+
+tmp <- gsvaParam(log2(mat + 1), gene_sets, kcdf = "Gaussian")
+out[[2]] <- gsva(tmp, BPPARAM = MulticoreParam(availableCores()))
+
+tmp <- ssgseaParam(log2(mat + 1), gene_sets, normalize = FALSE)
+out[[3]] <- gsva(tmp, BPPARAM = MulticoreParam(availableCores()))
+
+tmp <- zscoreParam(log2(mat + 1), gene_sets)
+out[[4]] <- gsva(tmp, BPPARAM = MulticoreParam(availableCores()))
+
+tmp <- plageParam(log2(mat + 1), gene_sets)
+out[[5]] <- gsva(tmp, BPPARAM = MulticoreParam(availableCores()))
+
+out[[6]] <- genefunnel(
+  mat, gene_sets, BPPARAM = MulticoreParam(availableCores())
+)
+```
+
+```{r, fig.width = 7}
+grid_list <- vector("list", length = 2)
+
+ht_list = NULL
+for (i in c(1:3)) {
+  col_range <- c(
+    min(out[[i]], na.rm = TRUE),
+    (min(out[[i]], na.rm = TRUE) + max(out[[i]], na.rm = TRUE)) / 2,
+    max(out[[i]], na.rm = TRUE)
+  )
+  ht_list <- ht_list +
+    Heatmap(
+      out[[i]],
+      col = colorRamp2(col_range, colors = c("blue", "white", "red")),
+      name = names(out)[[i]],
+      cluster_rows = FALSE,
+      cluster_columns = FALSE,
+      show_column_names = FALSE,
+      top_annotation = top_anno3,
+      column_split = seq(4),
+      column_title = NULL,
+      rect_gp = gpar(col = "black", lwd = 0.5),
+      column_gap = unit(1, units = "mm"),
+      row_names_gp = gpar(fontsize = 16),
+      column_title_gp = gpar(fontsize = 18),
+      row_names_side = "left",
+      width = unit(4, units = "cm"),
+      height = unit(2, units = "cm"),
+      heatmap_legend_param = list(
+        labels_gp = gpar(fontsize = 14), title_gp = gpar(fontsize = 15),
+        border = "lightgrey", title_position = "topcenter",
+        grid_height = unit(4, units = "mm"), direction = "horizontal",
+        legend_width = unit(3.75, units = "cm")
+      )
+    )
+}
+grid_list[[1]] <- grid.grabExpr(
+  draw(
+    ht_list, heatmap_legend_side = "top", legend_gap = unit(0.75, units = "cm")
+  )
+)
+
+ht_list = NULL
+for (i in c(4:6)) {
+  col_range <- c(
+    min(out[[i]], na.rm = TRUE),
+    (min(out[[i]], na.rm = TRUE) + max(out[[i]], na.rm = TRUE)) / 2,
+    max(out[[i]], na.rm = TRUE)
+  )
+  ht_list <- ht_list +
+    Heatmap(
+      out[[i]],
+      col = colorRamp2(col_range, colors = c("blue", "white", "red")),
+      name = names(out)[[i]],
+      cluster_rows = FALSE,
+      cluster_columns = FALSE,
+      show_column_names = FALSE,
+      top_annotation = top_anno3,
+      column_split = seq(4),
+      column_title = NULL,
+      rect_gp = gpar(col = "black", lwd = 0.5),
+      column_gap = unit(1, units = "mm"),
+      row_names_gp = gpar(fontsize = 16),
+      column_title_gp = gpar(fontsize = 18),
+      row_names_side = "left",
+      width = unit(4, units = "cm"),
+      height = unit(2, units = "cm"),
+      heatmap_legend_param = list(
+        labels_gp = gpar(fontsize = 14), title_gp = gpar(fontsize = 15),
+        border = "lightgrey", title_position = "topcenter",
+        grid_height = unit(4, units = "mm"), direction = "horizontal",
+        legend_width = unit(3.75, units = "cm")
+      )
+    )
+}
+grid_list[[2]] <- grid.grabExpr(
+  draw(
+    ht_list, heatmap_legend_side = "top", legend_gap = unit(0.75, units = "cm")
+  )
+)
+
+plot_grid(grid_list[[1]], grid_list[[2]], nrow = 2, vjust = 1)
+```
+
+### Scoring Output 1 {.no-title}
+
+```{r, results = "asis"}
+for (i in c(1:3)) {
+  print(
+    kable_styling(
+      kable(out[[i]], col.names = colnames, caption = names(out)[i]),
+      bootstrap_options = "none"
+    )
+  )
+}
+```
+
+### Scoring Output 2 {.no-title}
+
+```{r, results = "asis"}
+for (i in c(4:6)) {
+  print(
+    kable_styling(
+      kable(out[[i]], col.names = colnames, caption = names(out)[i]),
+      bootstrap_options = "none"
+    )
+  )
+}
+```
+
 ```{r, include = FALSE}
-rm(vec, noise1, noise2, noise3, noise4, noise5)
+rm(ht_list, loc1, loc2, mat, out, row_anno, tmp, top_anno2, top_anno3)
 gc()
 ```

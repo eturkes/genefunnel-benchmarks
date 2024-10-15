@@ -30,6 +30,7 @@ RUN apt-get update \
         -e "install.packages('shinyMatrix')" \
         -e "install.packages('RcppArmadillo')" \
         -e "install.packages('Seurat')" \
+        -e "install.packages('kableExtra')" \
         -e "install.packages('BiocManager')" \
         -e "BiocManager::install('ComplexHeatmap')" \
         -e "BiocManager::install('GSVA')" \
