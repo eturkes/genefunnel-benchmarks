@@ -370,7 +370,7 @@ Row {data-height=355}
 
 ### About GeneFunnel 1 {.no-title}
 
-GeneFunnel is a tool for gene set enrichment (or feature set scoring to generalise the concept), falling in the class of methods commonly referred to as ssGSEA-like (short for single-sample gene set enrichment analysis).
+GeneFunnel is a tool for gene set enrichment (or feature set scoring to generalise the concept), falling in the class of methods commonly referred to as ssGSEA-like (single-sample gene set enrichment analysis).
 It takes as input a matrix of genes/proteins (generally referred to as features) and samples, for example the output of an (sc)RNAseq or mass-spectrometry proteomics experiment.
 Also required is a gene set list, such as those provided by the Gene Ontology (GO), where each element is a set of genes (or any feature matching those in the input matrix) with a name for each set.
 The algorithm for GeneFunnel is expressed mathematically below, and explained intuitively in the right-hand pane.
@@ -390,11 +390,11 @@ GeneFunnel iterates through samples in the matrix, where for each sample, the fe
 For each set in the list, the matrix is subset to the matching features and scored.
 Conceptually, scoring takes the sum of the matching features, then adjusts the sum based on the deviance of each feature from the mean of the matching features.
 Specifically, the measure of deviance is taken by subtracting the value of each feature from the mean of matched features, taking the absolute value, then summing all of the deviance values.
-The absolute value is neccessary as many features will have values lower than the mean, and we are interested in any deviance whether positive or negative.
+The absolute value is necessary as many features will have values lower than the mean, and we are interested in any deviance whether positive or negative.
   
-The summed deviance is then substracted from the overall sum, providing the final score.
-This provides the property that a minimally deviant set will be equal to the sum, while a maximally deviant set will be equal to the inverse sum, in other words the sum multipled by -1.
-Users may be interested excluding sets with negative values or clamping their scores to zero, as such sets are considered unenriched.
+The summed deviance is then subtracted from the overall sum, providing the final score.
+This provides the property that a minimally deviant set will be equal to the sum, while a maximally deviant set will be equal to the inverse sum, in other words the sum multiplied by -1.
+Users may be interested in excluding sets with negative values or clamping their scores to zero, as such sets are considered unenriched.
 It is also up to the discretion of the user to log or otherwise transform scores, as is done with scRNAseq data to compress values to a smaller range, though in most cases the deviance correction will naturally protect against extreme values.
 
 Row {data-height=650}
@@ -718,7 +718,7 @@ grid.text(
 >  
 > Three types of gene sets are considered, as annotated on the right-hand side of the count matrix: the first 5 genes, the last 5 genes, and all 10 genes.  
 >  
-> Heatmaps for each method is shown in the bottom-left and to the right are the raw numerical output tables.
+> Heatmaps for each method are shown in the bottom-left and to the right are the raw numerical output tables.
 
 ```{r}
 ```
@@ -876,7 +876,7 @@ Row {.tabset}
 
 ### Background
 
-> In this next section we work with real data, in this case single-cell RNAseq data Alzheimer's Disease post-mortem brain tissue [Otero-Garcia, 2022, Neuron](https://doi.org/10.1016/j.neuron.2022.06.021).
+> In this next section we work with real data, in this case single-cell RNAseq data from Alzheimer's Disease post-mortem brain tissue [Otero-Garcia, 2022, Neuron](https://doi.org/10.1016/j.neuron.2022.06.021).
 > In brief, the authors used FACS sorting to separate neurons harboring neurofibrillary tangles (a major pathological hallmark of Alzheimer's Disease) from nearby neurons without tangles, within the same donors.  
 >  
 > We used a standard processing pipeline (https://github.com/eturkes/otero-garcia-2022-ssRNAseq) and merged cell-type populations described by the authors to have a large proportion of tangle-bearing neurons.
@@ -1011,7 +1011,7 @@ plot_grid(grid_list[[1]], grid_list[[2]], grid_list[[3]], nrow = 3)
 
 **Tau Protein Binding** is modified to reduce variability, that is, all genes are set to the sum of the gene counts divided by the total number of genes.
 Note that this gene set has overlap with other gene sets, so it may not necessarily be the highest hit, but should be ranked near the top.
-Below are the top 5 gene sets sorted by greatest absolute difference between the modified and the original column.
+Below are the top 5 gene sets sorted by greatest absolute difference between the modified and original column.
 
 <div style='display:flex; flex-direction:row; justify-content:space-evenly;'>
 <div>
@@ -1126,7 +1126,7 @@ plot_grid(grid_list[[1]], grid_list[[2]], grid_list[[3]], nrow = 3)
 
 **Neurofibrillary Tangle** is modified to have increased counts - all genes have 100 counts added to them.
 Note that this gene set has overlap with other gene sets, so it may not necessarily be the highest hit, but should be ranked near the top.
-Below are the top 5 gene sets sorted by greatest absolute difference between the modified and the original column.
+Below are the top 5 gene sets sorted by greatest absolute difference between the modified and original column.
 
 <div style='display:flex; flex-direction:row; justify-content:space-evenly;'>
 <div>
@@ -1521,7 +1521,7 @@ Row {.tabset}
 
 ### Background
 
-> This section compliments the previous and shows the original gene expression values for the gene sets targeted.
+> This section compliments the previous section and shows the original gene expression values for the gene sets targeted.
 
 ```{r}
 ```
