@@ -29,12 +29,20 @@ output:
 library(conflicted)
 packages <- c(
   "Rcpp", "Matrix", "shinyMatrix", "ComplexHeatmap", "circlize", "GSVA",
-  "BiocParallel", "parallelly", "cowplot", "knitr", "kableExtra"
+  "BiocParallel", "parallelly", "cowplot", "knitr", "kableExtra", "GSEABase",
+  "scuttle", "Seurat", "edgeR"
 )
 lapply(packages, FUN = library, character.only = TRUE)
 
+`%notin%` <- Negate(`%in%`)
+
 sourceCpp(file.path("..", "src", "calculateScores.cpp"))
 source("utils.R")
+
+data_dir <- file.path("..", "data")
+cache_dir <- file.path("..", "cache")
+
+ht_opt$DIMNAME_PADDING <- unit(3, units = "mm")
 
 top_anno <- HeatmapAnnotation(
   sample = anno_block(
@@ -58,6 +66,46 @@ top_anno3 <- HeatmapAnnotation(
     labels = c("S1", "S2", "S3", "S4"),
     labels_gp = gpar(col = "black", fontsize = 15),
     height = unit(10, "mm")
+  )
+)
+top_anno4 <- HeatmapAnnotation(
+  sample = anno_block(
+    gp = gpar(fill = "lightgray", col = "lightgray"),
+    labels = c("Original", "Modified"),
+    labels_gp = gpar(col = "black", fontsize = 12),
+    height = unit(8, "mm")
+  )
+)
+top_anno5 <- HeatmapAnnotation(
+  sample = anno_block(
+    gp = gpar(fill = "lightgray", col = "lightgray"),
+    labels = c("Original", "Low Var.", "High Var."),
+    labels_gp = gpar(col = "black", fontsize = 10),
+    height = unit(8, "mm")
+  )
+)
+top_anno6 <- HeatmapAnnotation(
+  sample = anno_block(
+    gp = gpar(fill = "lightgray", col = "lightgray"),
+    labels = c("NFT", "CTRL"),
+    labels_gp = gpar(col = "black", fontsize = 12),
+    height = unit(8, "mm")
+  )
+)
+top_anno7 <- HeatmapAnnotation(
+  sample = anno_block(
+    gp = gpar(fill = "lightgray", col = "lightgray"),
+    labels = c("Sample 1", "Sample 2", "Sample 3", "Sample 4", "Sample 5"),
+    labels_gp = gpar(col = "black", fontsize = 12),
+    height = unit(9, "mm")
+  )
+)
+top_anno8 <- HeatmapAnnotation(
+  sample = anno_block(
+    gp = gpar(fill = "lightgray", col = "lightgray"),
+    labels = c("Original", "Modified"),
+    labels_gp = gpar(col = "black", fontsize = 7),
+    height = unit(5, "mm")
   )
 )
 row_anno <- rowAnnotation(
@@ -98,7 +146,7 @@ default_mat <- matrix(
   ncol = 5,
   dimnames = list(
     paste("Gene", toupper(letters[1:10])),
-    c("Sample1", "Sample2", "Sample3", "Sample4", "Sample5")
+    c("Sample 1", "Sample 2", "Sample 3", "Sample 4", "Sample 5")
   )
 )
 gene_sets <- list(
@@ -107,7 +155,211 @@ gene_sets <- list(
   `Gene Set Z` = rownames(default_mat)
 )
 
-ht_opt$DIMNAME_PADDING <- unit(3, units = "mm")
+rds <- file.path(cache_dir, "gene_anno.rds")
+rds2 <- file.path(cache_dir, "sim.rds")
+if (file.exists(rds)) {
+  gene_anno <- readRDS(rds)
+  sim <- readRDS(rds2)
+} else {
+  seurat <- readRDS(file.path(data_dir, "annotated_seurat.rds"))
+  DefaultAssay(seurat) <- "RNA"
+  seurat@active.ident <- seurat$ctype
+  seurat <- subset(
+    seurat,
+    idents = c("EX L2-4 CUX2", "EX L4-5 RORB", "EX L5 RORB", "EX L5-6 THEMIS")
+  )
+  seurat@active.ident <- seurat$tau
+  seurat_CTRL <- seurat
+  seurat <- subset(seurat, idents = "NFT")
+  gc()
+
+  sim1 <- SingleCellExperiment(
+    list(counts = GetAssayData(seurat, layer = "counts"))
+  )
+  sim2 <- sim1
+  sim3 <- sim1
+  sim4 <- sim1
+  sim5 <- sim1
+  sim6 <- sim1
+  sim7 <- sim1
+
+  seurat_CTRL <- subset(seurat_CTRL, idents = "CTRL")
+  sim8 <- SingleCellExperiment(
+    list(counts = GetAssayData(seurat_CTRL, layer = "counts"))
+  )
+
+  sim <- cbind(sim1, sim2, sim3, sim4, sim5, sim6, sim7, sim8, deparse.level = 1)
+
+  ncol <- ncol(seurat)
+  sim$Group <- factor(
+    c(
+      rep("Group 1", times = ncol),
+      rep("Group 2", times = ncol),
+      rep("Group 3", times = ncol),
+      rep("Group 4", times = ncol),
+      rep("Group 5", times = ncol),
+      rep("Group 6", times = ncol),
+      rep("Group 7", times = ncol),
+      rep("Group 8", times = ncol(seurat_CTRL))
+    )
+  )
+
+  gene_anno <- data.frame(
+    symbol = unlist(seurat@misc), ensembl = rownames(seurat)
+  )
+
+  rm(sim1, sim2, sim3, sim4, sim5, sim6, sim7, sim8, seurat, seurat_CTRL)
+  gc()
+  saveRDS(gene_anno, file = rds)
+  saveRDS(sim, file = rds2)
+}
+
+gene_sets_sim <- readRDS(file.path(data_dir, "gene_sets_sim.rds"))
+
+sim <- sim[rownames(sim) %in% unlist(geneIds(gene_sets_sim)), ]
+sim <- suppressWarnings(
+  aggregateAcrossCells(
+    sim, colData(sim)[ , "Group"],
+    use_exprs_values = "counts", statistics = "sum",
+    BPPARAM = MulticoreParam(availableCores())
+  )
+)
+
+adjust_variability <- function(orig_vector, high_var = FALSE) {
+
+  orig_sum <- sum(orig_vector)
+  orig_mean <- mean(orig_vector)
+  scaled_values <- orig_vector
+
+  if (high_var) {
+    scaling_factors <- 1 + (0.01 * abs(scaled_values - orig_mean) / orig_mean)
+  } else {
+    scaling_factors <- 1 *
+      abs(scaled_values - orig_mean) / max(abs(scaled_values - orig_mean))
+      replace <- which(scaling_factors >= 1)
+    scaling_factors <- 1 - scaling_factors
+  }
+  scaled_values <- orig_mean + ((scaled_values - orig_mean) * scaling_factors)
+
+  if (high_var) {
+    scaled_values[scaled_values < 0] <- 0
+    scaled_values <- (scaled_values / sum(scaled_values)) * orig_sum
+  } else {
+    scaled_values <- scaled_values * (orig_sum / sum(scaled_values))
+  }
+
+  integer_values <- round(scaled_values)
+  diff <- orig_sum - sum(integer_values)
+  adjust_idx <- order(abs(scaled_values - integer_values), decreasing = TRUE)
+  for (i in seq_len(abs(diff))) {
+    if (diff > 0) {
+      integer_values[adjust_idx[i]] <- integer_values[adjust_idx[i]] + 1
+    } else if (diff < 0) {
+      integer_values[adjust_idx[i]] <- integer_values[adjust_idx[i]] - 1
+    }
+  }
+
+  return(integer_values)
+}
+
+mat <- counts(sim)
+mat[ , 2] <- adjust_variability(mat[ , 1], high_var = FALSE)
+mat[ , 3] <- adjust_variability(mat[ , 1], high_var = TRUE)
+
+genes <- unlist(
+  geneIds(
+    gene_sets_sim[names(gene_sets_sim) == "NELF complex"]
+  )
+)
+mat[which(rownames(mat) %in% genes), 4] <- round(
+  sum(mat[which(rownames(mat) %in% genes), 4]) / length(genes)
+)
+
+genes <- unlist(
+  geneIds(
+    gene_sets_sim[names(gene_sets_sim) == "trace-amine receptor activity"]
+  )
+)
+mat[which(rownames(mat) %in% genes), 4] <-
+  mat[which(rownames(mat) %in% genes), 4] + 1000
+
+genes <- unlist(
+  geneIds(
+    gene_sets_sim[names(gene_sets_sim) == "tau protein binding"]
+  )
+)
+mat[which(rownames(mat) %in% genes), 5] <- round(
+  sum(mat[which(rownames(mat) %in% genes), 5]) / length(genes)
+)
+
+genes <- unlist(
+  geneIds(
+    gene_sets_sim[names(gene_sets_sim) == "neurofibrillary tangle"]
+  )
+)
+mat[which(rownames(mat) %in% genes), 6] <-
+  mat[which(rownames(mat) %in% genes), 6] + 1000
+
+dge_orig <- DGEList(mat[ , c(7, 8)])
+keep <- filterByExpr(
+  dge_orig, group = sim$Group,
+  min.count = 10, min.total.count = 15
+)
+dge_orig <- dge_orig[keep, ]
+dge_orig <- calcNormFactors(dge_orig)
+dge <- DGEList(mat[ , c(7, 8)])
+dge$samples$norm.factors <- dge_orig$samples$norm.factors
+dge <- calcNormFactors(dge)
+mat[ , c(7, 8)] <- edgeR::cpm(
+  dge, log = FALSE, prior.count = 0
+)
+
+counts(sim) <- mat
+logcounts(sim) <- log2(mat + 1)
+
+rds <- file.path(cache_dir, "out_sim.rds")
+if (file.exists(rds)) {
+  out_sim <- readRDS(rds)
+} else {
+
+  out_sim <- vector("list", length = 6)
+  names(out_sim) <- c(
+    "GSVA Poisson", "GSVA Gaussian", "ssGSEA", "PLAGE", "Z-score", "GeneFunnel"
+  )
+
+  tmp <- gsvaParam(
+    counts(sim), gene_sets_sim, minSize = 2, kcdf = "Poisson"
+  )
+  out_sim[[1]] <- gsva(tmp, BPPARAM = MulticoreParam(availableCores()))
+
+  tmp <- gsvaParam(
+    logcounts(sim), gene_sets_sim, minSize = 2, kcdf = "Gaussian"
+  )
+  out_sim[[2]] <- gsva(tmp, BPPARAM = MulticoreParam(availableCores()))
+
+  tmp <- ssgseaParam(
+    logcounts(sim), minSize = 2, gene_sets_sim, normalize = FALSE
+  )
+  out_sim[[3]] <- gsva(tmp, BPPARAM = MulticoreParam(availableCores()))
+
+  tmp <- zscoreParam(
+    logcounts(sim), minSize = 2, gene_sets_sim
+  )
+  out_sim[[4]] <- gsva(tmp, BPPARAM = MulticoreParam(availableCores()))
+
+  tmp <- plageParam(
+    logcounts(sim), minSize = 2, gene_sets_sim
+  )
+  out_sim[[5]] <- gsva(tmp, BPPARAM = MulticoreParam(availableCores()))
+
+  out_sim[[6]] <- genefunnel(
+    counts(sim), geneIds(gene_sets_sim),
+    BPPARAM = MulticoreParam(availableCores())
+  )
+  out_sim[[6]] <- pmax(out_sim[[6]], 0)
+
+  saveRDS(out_sim, file = rds)
+}
 ```
 
 Algorithm Overview
@@ -157,18 +409,18 @@ Row {data-height=650}
 shinyApp(
   ui = fluidPage(
     mainPanel(
-      width = 3,
+      width = 4,
       tags$h3(
         HTML("⮦ Click Cells to Edit Matrix ⮧"), style = "text-align:center"
       ),
       matrixInput(
         "mat",
-        label = "Hypothetical Raw Gene Count X Sample Matrix",
+        label = "Hypothetical Raw Gene Count by Sample Matrix",
         value = default_mat
       )
     ),
     mainPanel(
-      width = 4,
+      width = 3,
       plotOutput("gene_heatmap", height = "400px")
     ),
     mainPanel(
@@ -179,6 +431,8 @@ shinyApp(
   server = function(input, output, session) {
 
     output$gene_heatmap <- renderPlot({
+      ht_opt$DIMNAME_PADDING <- unit(3, units = "mm")
+
       heatmap_mat <- apply(input$mat, MARGIN = 2, FUN = as.numeric)
       rownames(heatmap_mat) <- rownames(input$mat)
 
@@ -196,18 +450,18 @@ shinyApp(
           cluster_rows = FALSE,
           cluster_columns = FALSE,
           show_column_names = FALSE,
-          top_annotation = top_anno,
+          top_annotation = top_anno7,
           column_split = seq(5),
           column_title = "Hypothetical Raw Gene Count by Sample Matrix",
           rect_gp = gpar(col = "black", lwd = 0.5),
           column_gap = unit(1, units = "mm"),
-          row_names_gp = gpar(fontsize = 15),
-          column_title_gp = gpar(fontsize = 18),
+          row_names_gp = gpar(fontsize = 14),
+          column_title_gp = gpar(fontsize = 13),
           row_names_side = "left",
           heatmap_legend_param = list(
-            labels_gp = gpar(fontsize = 14), title_gp = gpar(fontsize = 15),
+            labels_gp = gpar(fontsize = 12), title_gp = gpar(fontsize = 14),
             border = "lightgrey", title_position = "topcenter",
-            grid_height = unit(4, units = "mm"), direction = "horizontal"
+            grid_height = unit(3, units = "mm"), direction = "horizontal"
           )
         ),
         heatmap_legend_side = "top"
@@ -215,6 +469,8 @@ shinyApp(
     })
 
     output$gse_heatmap <- renderPlot({
+      ht_opt$DIMNAME_PADDING <- unit(3, units = "mm")
+
       numeric_mat <- apply(input$mat, MARGIN = 2, FUN = as.numeric)
       heatmap_mat <- matrix(
         c(
@@ -354,7 +610,7 @@ shinyApp(
             )
           ),
           rot = 0,
-          gp = gpar(fontsize = 18),
+          gp = gpar(fontsize = 16),
           just = "centre"
         )
       )
@@ -378,11 +634,11 @@ shinyApp(
           column_split = seq(5),
           column_title = "Resulting Gene Set Enrichment by Sample Matrix",
           rect_gp = gpar(col = "black", lwd = 0.5),
-          column_gap = unit(1, units = "mm"),
+          column_gap = unit(2.5, units = "mm"),
           row_names_gp = gpar(fontsize = 16),
           column_title_gp = gpar(fontsize = 18),
           row_names_side = "left",
-          height = unit(0.5, "npc"),
+          height = unit(0.5, units = "npc"),
           heatmap_legend_param = list(
             labels_gp = gpar(fontsize = 14), title_gp = gpar(fontsize = 15),
             border = "lightgrey", title_position = "topcenter",
@@ -472,25 +728,25 @@ Row {data-height=555}
 
 ### Gene Set Scoring {.no-title}
 
-```{r, results = "hide"}
+```{r, include = FALSE}
 out <- vector("list", length = 6)
 names(out) <- c(
   "GSVA Poisson", "GSVA Gaussian", "ssGSEA", "PLAGE", "Z-score", "GeneFunnel"
 )
 
-tmp <- gsvaParam(mat, gene_sets, kcdf = "Poisson")
+tmp <- gsvaParam(mat, gene_sets, minSize = 2, kcdf = "Poisson")
 out[[1]] <- gsva(tmp, BPPARAM = MulticoreParam(availableCores()))
 
-tmp <- gsvaParam(log2(mat + 1), gene_sets, kcdf = "Gaussian")
+tmp <- gsvaParam(log2(mat + 1), gene_sets, minSize = 2, kcdf = "Gaussian")
 out[[2]] <- gsva(tmp, BPPARAM = MulticoreParam(availableCores()))
 
-tmp <- ssgseaParam(log2(mat + 1), gene_sets, normalize = FALSE)
+tmp <- ssgseaParam(log2(mat + 1), gene_sets, minSize = 2, normalize = FALSE)
 out[[3]] <- gsva(tmp, BPPARAM = MulticoreParam(availableCores()))
 
-tmp <- zscoreParam(log2(mat + 1), gene_sets)
+tmp <- zscoreParam(log2(mat + 1), minSize = 2, gene_sets)
 out[[4]] <- gsva(tmp, BPPARAM = MulticoreParam(availableCores()))
 
-tmp <- plageParam(log2(mat + 1), gene_sets)
+tmp <- plageParam(log2(mat + 1), minSize = 2, gene_sets)
 out[[5]] <- gsva(tmp, BPPARAM = MulticoreParam(availableCores()))
 
 out[[6]] <- genefunnel(
@@ -579,7 +835,7 @@ grid_list[[2]] <- grid.grabExpr(
   )
 )
 
-plot_grid(grid_list[[1]], grid_list[[2]], nrow = 2, vjust = 1)
+plot_grid(grid_list[[1]], grid_list[[2]], nrow = 2)
 ```
 
 ### Scoring Output 1 {.no-title}
@@ -608,7 +864,1141 @@ for (i in c(4:6)) {
 }
 ```
 
+Real Dataset Gene Set Enrichment
+===
+
+```{r}
+ht_opt$DIMNAME_PADDING <- unit(2, units = "mm")
+```
+
+Row {.tabset}
+---
+
+### Background
+
+> In this next section we work with real data, in this case single-cell RNAseq data Alzheimer's Disease post-mortem brain tissue [Otero-Garcia, 2022, Neuron](https://doi.org/10.1016/j.neuron.2022.06.021).
+> In brief, the authors used FACS sorting to separate neurons harboring neurofibrillary tangles (a major pathological hallmark of Alzheimer's Disease) from nearby neurons without tangles, within the same donors.  
+>  
+> We used a standard processing pipeline (https://github.com/eturkes/otero-garcia-2022-ssRNAseq) and merged cell-type populations described by the authors to have a large proportion of tangle-bearing neurons.
+> In the UMAP below, this corresponds to the populations EX L2-4 CUX2, EX L4-5 RORB, EX L5 RORB, and EX L5-6 THEMIS.
+
+<div>
+
+```{r, out.height = "100%", out.widgth = "100%", dpi = 150}
+include_graphics("otero_garcia_umap")
+```
+
+</div>
+
+### Non-overlapping Gene Sets
+
+For this example, two gene sets are altered.
+**NELF Complex** is modified to reduce variability, that is, all genes are set to the sum of the gene counts divided by the total number of genes.
+**Trace-amine Receptor Activity** is simply modified to have increased counts - all genes have 100 counts added to them.
+These gene sets were specifically selected because they have no gene overlap with other gene sets in the testing set, therefore, any changes detected should only be in these two sets.
+Below are the top two gene sets sorted by greatest absolute difference between the modified and the original column.
+
+<div style='display:flex; flex-direction:row; justify-content:space-evenly;'>
+<div>
+
+```{r, fig.width = 8, fig.height = 7}
+grid_list <- vector("list", length = 3)
+
+for (i in c(1:3)) {
+  mat <- SingleCellExperiment(list(counts = out_sim[[i]]))
+  mat$Group <- sim$Group
+  mat <- mat[ , c(1, 4)]
+  col_range <- c(
+    min(counts(mat)),
+    (min(counts(mat)) + max(counts(mat))) / 2,
+    max(counts(mat))
+  )
+
+  tmp <- mat[order(counts(mat[ , 2]) - counts(mat[ , 1]), decreasing = TRUE), ]
+  rownames <- rownames(tmp)[1:2]
+  mat <- mat[rownames(mat) %in% rownames, ]
+  mat <- mat[match(rownames, rownames(mat)), ]
+  grid_list[[i]] <- Heatmap(
+    counts(mat),
+    name = names(out_sim)[[i]],
+    col = colorRamp2(col_range, colors = c("blue", "white", "red")),
+    cluster_rows = FALSE,
+    cluster_columns = FALSE,
+    show_column_names = FALSE,
+    top_annotation = top_anno4,
+    column_split = mat$Group,
+    column_title = NULL,
+    rect_gp = gpar(col = "black", lwd = 0.5),
+    column_gap = unit(1, units = "mm"),
+    row_names_gp = gpar(fontsize = 14),
+    column_title_gp = gpar(fontsize = 16),
+    row_names_side = "left",
+    row_names_max_width = max_text_width(
+      rownames(mat), gp = gpar(fontsize = 14)
+    ),
+    heatmap_legend_param = list(
+      labels_gp = gpar(fontsize = 12), title_gp = gpar(fontsize = 14),
+      border = "lightgrey", title_position = "topcenter",
+      grid_height = unit(4, units = "mm"), direction = "horizontal"
+    )
+  )
+
+  grid_list[[i]] <- grid.grabExpr(
+    draw(grid_list[[i]], heatmap_legend_side = "top")
+  )
+}
+
+plot_grid(grid_list[[1]], grid_list[[2]], grid_list[[3]], nrow = 3)
+```
+
+</div>
+<div>
+
+```{r, fig.width = 8, fig.height = 7}
+grid_list <- vector("list", length = 3)
+
+for (i in c(4:6)) {
+  mat <- SingleCellExperiment(list(counts = out_sim[[i]]))
+  mat$Group <- sim$Group
+  mat <- mat[ , c(1, 4)]
+  col_range <- c(
+    min(counts(mat)),
+    (min(counts(mat)) + max(counts(mat))) / 2,
+    max(counts(mat))
+  )
+
+  tmp <- mat[order(counts(mat[ , 2]) - counts(mat[ , 1]), decreasing = TRUE), ]
+  rownames <- rownames(tmp)[1:2]
+  mat <- mat[rownames(mat) %in% rownames, ]
+  mat <- mat[match(rownames, rownames(mat)), ]
+  grid_list[[i - 3]] <- Heatmap(
+    counts(mat),
+    name = names(out_sim)[[i]],
+    col = colorRamp2(col_range, colors = c("blue", "white", "red")),
+    cluster_rows = FALSE,
+    cluster_columns = FALSE,
+    show_column_names = FALSE,
+    top_annotation = top_anno4,
+    column_split = mat$Group,
+    column_title = NULL,
+    rect_gp = gpar(col = "black", lwd = 0.5),
+    column_gap = unit(1, units = "mm"),
+    row_names_gp = gpar(fontsize = 14),
+    column_title_gp = gpar(fontsize = 16),
+    row_names_side = "left",
+    row_names_max_width = max_text_width(
+      rownames(mat), gp = gpar(fontsize = 14)
+    ),
+    heatmap_legend_param = list(
+      labels_gp = gpar(fontsize = 12), title_gp = gpar(fontsize = 14),
+      border = "lightgrey", title_position = "topcenter",
+      grid_height = unit(4, units = "mm"), direction = "horizontal"
+    )
+  )
+
+  grid_list[[i - 3]] <- grid.grabExpr(
+    draw(grid_list[[i - 3]], heatmap_legend_side = "top")
+  )
+}
+
+plot_grid(grid_list[[1]], grid_list[[2]], grid_list[[3]], nrow = 3)
+```
+
+</div>
+</div>
+
+### Tau Protein Binding
+
+**Tau Protein Binding** is modified to reduce variability, that is, all genes are set to the sum of the gene counts divided by the total number of genes.
+Note that this gene set has overlap with other gene sets, so it may not necessarily be the highest hit, but should be ranked near the top.
+Below are the top 5 gene sets sorted by greatest absolute difference between the modified and the original column.
+
+<div style='display:flex; flex-direction:row; justify-content:space-evenly;'>
+<div>
+
+```{r, fig.width = 8, fig.height = 7}
+grid_list <- vector("list", length = 3)
+
+for (i in c(1:3)) {
+  mat <- SingleCellExperiment(list(counts = out_sim[[i]]))
+  mat$Group <- sim$Group
+  mat <- mat[ , c(1, 5)]
+  col_range <- c(
+    min(counts(mat)),
+    (min(counts(mat)) + max(counts(mat))) / 2,
+    max(counts(mat))
+  )
+
+  tmp <- mat[order(counts(mat[ , 2]) - counts(mat[ , 1]), decreasing = TRUE), ]
+  rownames <- rownames(tmp)[1:5]
+  mat <- mat[rownames(mat) %in% rownames, ]
+  mat <- mat[match(rownames, rownames(mat)), ]
+  grid_list[[i]] <- Heatmap(
+    counts(mat),
+    name = names(out_sim)[[i]],
+    col = colorRamp2(col_range, colors = c("blue", "white", "red")),
+    cluster_rows = FALSE,
+    cluster_columns = FALSE,
+    show_column_names = FALSE,
+    top_annotation = top_anno4,
+    column_split = mat$Group,
+    column_title = NULL,
+    rect_gp = gpar(col = "black", lwd = 0.5),
+    column_gap = unit(1, units = "mm"),
+    row_names_gp = gpar(fontsize = 14),
+    column_title_gp = gpar(fontsize = 16),
+    row_names_side = "left",
+    row_names_max_width = max_text_width(
+      rownames(mat), gp = gpar(fontsize = 14)
+    ),
+    heatmap_legend_param = list(
+      labels_gp = gpar(fontsize = 12), title_gp = gpar(fontsize = 14),
+      border = "lightgrey", title_position = "topcenter",
+      grid_height = unit(4, units = "mm"), direction = "horizontal"
+    )
+  )
+
+  grid_list[[i]] <- grid.grabExpr(
+    draw(grid_list[[i]], heatmap_legend_side = "top")
+  )
+}
+
+plot_grid(grid_list[[1]], grid_list[[2]], grid_list[[3]], nrow = 3)
+```
+
+</div>
+<div>
+
+```{r, fig.width = 8, fig.height = 7}
+grid_list <- vector("list", length = 3)
+
+for (i in c(4:6)) {
+  mat <- SingleCellExperiment(list(counts = out_sim[[i]]))
+  mat$Group <- sim$Group
+  mat <- mat[ , c(1, 5)]
+  col_range <- c(
+    min(counts(mat)),
+    (min(counts(mat)) + max(counts(mat))) / 2,
+    max(counts(mat))
+  )
+
+  tmp <- mat[order(counts(mat[ , 2]) - counts(mat[ , 1]), decreasing = TRUE), ]
+  rownames <- rownames(tmp)[1:5]
+  mat <- mat[rownames(mat) %in% rownames, ]
+  mat <- mat[match(rownames, rownames(mat)), ]
+  grid_list[[i - 3]] <- Heatmap(
+    counts(mat),
+    name = names(out_sim)[[i]],
+    col = colorRamp2(col_range, colors = c("blue", "white", "red")),
+    cluster_rows = FALSE,
+    cluster_columns = FALSE,
+    show_column_names = FALSE,
+    top_annotation = top_anno4,
+    column_split = mat$Group,
+    column_title = NULL,
+    rect_gp = gpar(col = "black", lwd = 0.5),
+    column_gap = unit(1, units = "mm"),
+    row_names_gp = gpar(fontsize = 14),
+    column_title_gp = gpar(fontsize = 16),
+    row_names_side = "left",
+    row_names_max_width = max_text_width(
+      rownames(mat), gp = gpar(fontsize = 14)
+    ),
+    heatmap_legend_param = list(
+      labels_gp = gpar(fontsize = 12), title_gp = gpar(fontsize = 14),
+      border = "lightgrey", title_position = "topcenter",
+      grid_height = unit(4, units = "mm"), direction = "horizontal"
+    )
+  )
+
+  grid_list[[i - 3]] <- grid.grabExpr(
+    draw(grid_list[[i - 3]], heatmap_legend_side = "top")
+  )
+}
+
+plot_grid(grid_list[[1]], grid_list[[2]], grid_list[[3]], nrow = 3)
+```
+
+</div>
+</div>
+
+### Neurofibrillary Tangle
+
+**Neurofibrillary Tangle** is modified to have increased counts - all genes have 100 counts added to them.
+Note that this gene set has overlap with other gene sets, so it may not necessarily be the highest hit, but should be ranked near the top.
+Below are the top 5 gene sets sorted by greatest absolute difference between the modified and the original column.
+
+<div style='display:flex; flex-direction:row; justify-content:space-evenly;'>
+<div>
+
+```{r, fig.width = 8, fig.height = 7}
+grid_list <- vector("list", length = 3)
+
+for (i in c(1:3)) {
+  mat <- SingleCellExperiment(list(counts = out_sim[[i]]))
+  mat$Group <- sim$Group
+  mat <- mat[ , c(1, 6)]
+  col_range <- c(
+    min(counts(mat)),
+    (min(counts(mat)) + max(counts(mat))) / 2,
+    max(counts(mat))
+  )
+
+  tmp <- mat[order(counts(mat[ , 2]) - counts(mat[ , 1]), decreasing = TRUE), ]
+  rownames <- rownames(tmp)[1:5]
+  mat <- mat[rownames(mat) %in% rownames, ]
+  mat <- mat[match(rownames, rownames(mat)), ]
+  grid_list[[i]] <- Heatmap(
+    counts(mat),
+    name = names(out_sim)[[i]],
+    col = colorRamp2(col_range, colors = c("blue", "white", "red")),
+    cluster_rows = FALSE,
+    cluster_columns = FALSE,
+    show_column_names = FALSE,
+    top_annotation = top_anno4,
+    column_split = mat$Group,
+    column_title = NULL,
+    rect_gp = gpar(col = "black", lwd = 0.5),
+    column_gap = unit(1, units = "mm"),
+    row_names_gp = gpar(fontsize = 14),
+    column_title_gp = gpar(fontsize = 16),
+    row_names_side = "left",
+    row_names_max_width = max_text_width(
+      rownames(mat), gp = gpar(fontsize = 14)
+    ),
+    heatmap_legend_param = list(
+      labels_gp = gpar(fontsize = 12), title_gp = gpar(fontsize = 14),
+      border = "lightgrey", title_position = "topcenter",
+      grid_height = unit(4, units = "mm"), direction = "horizontal"
+    )
+  )
+
+  grid_list[[i]] <- grid.grabExpr(
+    draw(grid_list[[i]], heatmap_legend_side = "top")
+  )
+}
+
+plot_grid(grid_list[[1]], grid_list[[2]], grid_list[[3]], nrow = 3)
+```
+
+</div>
+<div>
+
+```{r, fig.width = 8, fig.height = 7}
+grid_list <- vector("list", length = 3)
+
+for (i in c(4:6)) {
+  if (i == 5) {
+    mat <- SingleCellExperiment(list(counts = out_sim[[i]]))
+    mat$Group <- sim$Group
+    mat <- mat[ , c(1, 6)]
+    col_range <- c(
+      min(counts(mat)),
+      (min(counts(mat)) + max(counts(mat))) / 2,
+      max(counts(mat))
+    )
+
+    tmp <- mat[
+      order(counts(mat[ , 2]) - counts(mat[ , 1]), decreasing = TRUE),
+    ]
+    rownames <- rownames(tmp)[1:5]
+    mat <- mat[rownames(mat) %in% rownames, ]
+    mat <- mat[match(rownames, rownames(mat)), ]
+    grid_list[[i - 3]] <- Heatmap(
+      counts(mat),
+      name = names(out_sim)[[i]],
+      col = colorRamp2(col_range, colors = c("blue", "white", "red")),
+      cluster_rows = FALSE,
+      cluster_columns = FALSE,
+      show_column_names = FALSE,
+      top_annotation = top_anno8,
+      column_split = mat$Group,
+      column_title = NULL,
+      rect_gp = gpar(col = "black", lwd = 0.5),
+      column_gap = unit(1, units = "mm"),
+      row_names_gp = gpar(fontsize = 10),
+      column_title_gp = gpar(fontsize = 16),
+      row_names_side = "left",
+      row_names_max_width = max_text_width(
+        rownames(mat), gp = gpar(fontsize = 10)
+      ),
+      heatmap_legend_param = list(
+        labels_gp = gpar(fontsize = 12), title_gp = gpar(fontsize = 14),
+        border = "lightgrey", title_position = "topcenter",
+        grid_height = unit(4, units = "mm"), direction = "horizontal"
+      )
+    )
+
+    grid_list[[i - 3]] <- grid.grabExpr(
+      draw(grid_list[[i - 3]], heatmap_legend_side = "top")
+    )
+  } else {
+    mat <- SingleCellExperiment(list(counts = out_sim[[i]]))
+    mat$Group <- sim$Group
+    mat <- mat[ , c(1, 6)]
+    col_range <- c(
+      min(counts(mat)),
+      (min(counts(mat)) + max(counts(mat))) / 2,
+      max(counts(mat))
+    )
+
+    tmp <- mat[
+      order(counts(mat[ , 2]) - counts(mat[ , 1]), decreasing = TRUE),
+    ]
+    rownames <- rownames(tmp)[1:5]
+    mat <- mat[rownames(mat) %in% rownames, ]
+    mat <- mat[match(rownames, rownames(mat)), ]
+    grid_list[[i - 3]] <- Heatmap(
+      counts(mat),
+      name = names(out_sim)[[i]],
+      col = colorRamp2(col_range, colors = c("blue", "white", "red")),
+      cluster_rows = FALSE,
+      cluster_columns = FALSE,
+      show_column_names = FALSE,
+      top_annotation = top_anno4,
+      column_split = mat$Group,
+      column_title = NULL,
+      rect_gp = gpar(col = "black", lwd = 0.5),
+      column_gap = unit(1, units = "mm"),
+      row_names_gp = gpar(fontsize = 14),
+      column_title_gp = gpar(fontsize = 16),
+      row_names_side = "left",
+      row_names_max_width = max_text_width(
+        rownames(mat), gp = gpar(fontsize = 14)
+      ),
+      heatmap_legend_param = list(
+        labels_gp = gpar(fontsize = 12), title_gp = gpar(fontsize = 14),
+        border = "lightgrey", title_position = "topcenter",
+        grid_height = unit(4, units = "mm"), direction = "horizontal"
+      )
+    )
+
+    grid_list[[i - 3]] <- grid.grabExpr(
+      draw(grid_list[[i - 3]], heatmap_legend_side = "top")
+    )
+  }
+}
+
+plot_grid(grid_list[[1]], grid_list[[2]], grid_list[[3]], nrow = 3)
+```
+
+</div>
+</div>
+
+### High vs. Low Variability
+
+<div style='display:flex; flex-direction:row; justify-content:space-evenly;'>
+<div>
+
+```{r, fig.width = 8, fig.height = 7}
+mat <- SingleCellExperiment(list(counts = out_sim[[6]]))
+mat$Group <- sim$Group
+mat <- mat[ , c(1, 2, 3)]
+col_range <- c(
+  min(counts(mat)),
+  (min(counts(mat)) + max(counts(mat))) / 2,
+  max(counts(mat))
+)
+
+tmp <- mat[order(counts(mat[ , 2]) / counts(mat[ , 1]), decreasing = TRUE), ]
+rownames <- rownames(tmp)[1:10]
+tmp <- mat[order(counts(mat[ , 2]) / counts(mat[ , 1]), decreasing = FALSE), ]
+rownames <- c(rownames, rownames(tmp)[1:10])
+mat <- mat[rownames(mat) %in% rownames, ]
+mat <- mat[match(rownames, rownames(mat)), ]
+counts(mat) <- t(
+  apply(
+    counts(mat), MARGIN = 1,
+    FUN = function (x) ((2 * (x - min(x)) / (max(x) - min(x))) - 1)
+  )
+)
+draw(
+  Heatmap(
+    counts(mat),
+    name = names(out_sim)[[6]],
+    col = colorRamp2(c(-1, 0, 1), colors = c("blue", "white", "red")),
+    cluster_rows = FALSE,
+    cluster_columns = FALSE,
+    show_column_names = FALSE,
+    top_annotation = top_anno5,
+    column_split = mat$Group,
+    column_title = NULL,
+    rect_gp = gpar(col = "black", lwd = 0.5),
+    column_gap = unit(1, units = "mm"),
+    row_names_gp = gpar(fontsize = 12),
+    column_title_gp = gpar(fontsize = 16),
+    row_names_side = "left",
+    row_names_max_width = max_text_width(
+      rownames(mat), gp = gpar(fontsize = 12)
+    ),
+    heatmap_legend_param = list(
+      labels_gp = gpar(fontsize = 12), title_gp = gpar(fontsize = 14),
+      border = "lightgrey", title_position = "topcenter",
+      grid_height = unit(4, units = "mm"), direction = "horizontal"
+    )
+  ),
+  heatmap_legend_side = "top"
+)
+```
+
+</div>
+<div>
+
+```{r, fig.width = 8, fig.height = 7}
+mat <- SingleCellExperiment(list(counts = out_sim[[6]]))
+mat$Group <- sim$Group
+mat <- mat[ , c(1, 2, 3)]
+col_range <- c(
+  min(counts(mat)),
+  (min(counts(mat)) + max(counts(mat))) / 2,
+  max(counts(mat))
+)
+
+tmp <- mat[order(counts(mat[ , 3]) / counts(mat[ , 1]), decreasing = TRUE), ]
+rownames <- rownames(tmp)[1:10]
+tmp <- mat[order(counts(mat[ , 3]) / counts(mat[ , 1]), decreasing = FALSE), ]
+rownames <- c(rownames, rownames(tmp)[1:10])
+mat <- mat[rownames(mat) %in% rownames, ]
+mat <- mat[match(rownames, rownames(mat)), ]
+counts(mat) <- t(
+  apply(
+    counts(mat), MARGIN = 1,
+    FUN = function (x) ((2 * (x - min(x)) / (max(x) - min(x))) - 1)
+  )
+)
+draw(
+  Heatmap(
+    counts(mat),
+    name = names(out_sim)[[6]],
+    col = colorRamp2(c(-1, 0, 1), colors = c("blue", "white", "red")),
+    cluster_rows = FALSE,
+    cluster_columns = FALSE,
+    show_column_names = FALSE,
+    top_annotation = top_anno5,
+    column_split = mat$Group,
+    column_title = NULL,
+    rect_gp = gpar(col = "black", lwd = 0.5),
+    column_gap = unit(1, units = "mm"),
+    row_names_gp = gpar(fontsize = 12),
+    column_title_gp = gpar(fontsize = 16),
+    row_names_side = "left",
+    row_names_max_width = max_text_width(
+      rownames(mat), gp = gpar(fontsize = 12)
+    ),
+    heatmap_legend_param = list(
+      labels_gp = gpar(fontsize = 12), title_gp = gpar(fontsize = 14),
+      border = "lightgrey", title_position = "topcenter",
+      grid_height = unit(4, units = "mm"), direction = "horizontal"
+    )
+  ),
+  heatmap_legend_side = "top"
+)
+```
+
+</div>
+</div>
+
+### Differential Expression (NFT vs. CTRL)
+
+<div style='display:flex; flex-direction:row; justify-content:space-evenly;'>
+<div>
+
+```{r, fig.width = 8, fig.height = 7}
+grid_list <- vector("list", length = 3)
+
+for (i in c(1:3)) {
+  mat <- SingleCellExperiment(list(counts = out_sim[[i]]))
+  mat$Group <- sim$Group
+  mat <- mat[ , c(7, 8)]
+  col_range <- c(
+    min(counts(mat)),
+    (min(counts(mat)) + max(counts(mat))) / 2,
+    max(counts(mat))
+  )
+
+  tmp <- mat[order(counts(mat[ , 1]) - counts(mat[ , 2]), decreasing = TRUE), ]
+  rownames <- rownames(tmp)[1:5]
+  # tmp <- mat[order(counts(mat[ , 2]) - counts(mat[ , 1]), decreasing = TRUE), ]
+  # rownames <- c(rownames, rownames(tmp)[1:5])
+  mat <- mat[rownames(mat) %in% rownames, ]
+  mat <- mat[match(rownames, rownames(mat)), ]
+  grid_list[[i]] <- Heatmap(
+    counts(mat),
+    name = names(out_sim)[[i]],
+    col = colorRamp2(col_range, colors = c("blue", "white", "red")),
+    cluster_rows = FALSE,
+    cluster_columns = FALSE,
+    show_column_names = FALSE,
+    top_annotation = top_anno6,
+    column_split = mat$Group,
+    column_title = NULL,
+    rect_gp = gpar(col = "black", lwd = 0.5),
+    column_gap = unit(1, units = "mm"),
+    row_names_gp = gpar(fontsize = 14),
+    column_title_gp = gpar(fontsize = 16),
+    row_names_side = "left",
+    row_names_max_width = max_text_width(
+      rownames(mat), gp = gpar(fontsize = 14)
+    ),
+    heatmap_legend_param = list(
+      labels_gp = gpar(fontsize = 12), title_gp = gpar(fontsize = 14),
+      border = "lightgrey", title_position = "topcenter",
+      grid_height = unit(4, units = "mm"), direction = "horizontal"
+    )
+  )
+
+  grid_list[[i]] <- grid.grabExpr(
+    draw(grid_list[[i]], heatmap_legend_side = "top")
+  )
+}
+
+plot_grid(grid_list[[1]], grid_list[[2]], grid_list[[3]], nrow = 3)
+```
+
+</div>
+<div>
+
+```{r, fig.width = 8, fig.height = 7}
+grid_list <- vector("list", length = 3)
+
+for (i in c(4:6)) {
+  mat <- SingleCellExperiment(list(counts = out_sim[[i]]))
+  mat$Group <- sim$Group
+  mat <- mat[ , c(7, 8)]
+  col_range <- c(
+    min(counts(mat)),
+    (min(counts(mat)) + max(counts(mat))) / 2,
+    max(counts(mat))
+  )
+
+  tmp <- mat[order(counts(mat[ , 1]) - counts(mat[ , 2]), decreasing = TRUE), ]
+  rownames <- rownames(tmp)[1:5]
+  # tmp <- mat[order(counts(mat[ , 2]) - counts(mat[ , 1]), decreasing = TRUE), ]
+  # rownames <- c(rownames, rownames(tmp)[1:5])
+  mat <- mat[rownames(mat) %in% rownames, ]
+  mat <- mat[match(rownames, rownames(mat)), ]
+  grid_list[[i - 3]] <- Heatmap(
+    counts(mat),
+    name = names(out_sim)[[i]],
+    col = colorRamp2(col_range, colors = c("blue", "white", "red")),
+    cluster_rows = FALSE,
+    cluster_columns = FALSE,
+    show_column_names = FALSE,
+    top_annotation = top_anno6,
+    column_split = mat$Group,
+    column_title = NULL,
+    rect_gp = gpar(col = "black", lwd = 0.5),
+    column_gap = unit(1, units = "mm"),
+    row_names_gp = gpar(fontsize = 14),
+    column_title_gp = gpar(fontsize = 16),
+    row_names_side = "left",
+    row_names_max_width = max_text_width(
+      rownames(mat), gp = gpar(fontsize = 14)
+    ),
+    heatmap_legend_param = list(
+      labels_gp = gpar(fontsize = 12), title_gp = gpar(fontsize = 14),
+      border = "lightgrey", title_position = "topcenter",
+      grid_height = unit(4, units = "mm"), direction = "horizontal"
+    )
+  )
+
+  grid_list[[i - 3]] <- grid.grabExpr(
+    draw(grid_list[[i - 3]], heatmap_legend_side = "top")
+  )
+}
+
+plot_grid(grid_list[[1]], grid_list[[2]], grid_list[[3]], nrow = 3)
+```
+
+</div>
+</div>
+
+Real Dataset Gene Expression
+===
+
+Row {.tabset}
+---
+
+### Background
+
+> This section compliments the previous and shows the original gene expression values for the gene sets targeted.
+
+```{r}
+```
+
+### Non-overlapping Gene Sets
+
+<div style='display:flex; flex-direction:row; justify-content:space-evenly;'>
+<div>
+
+```{r, fig.width = 7, fig.height = 8}
+gse_plot <- "NELF complex"
+for (gse in gse_plot) {
+  genes <- unlist(geneIds(gene_sets_sim[names(gene_sets_sim) %in% gse]))
+  mat <- sim[rownames(sim) %in% genes, c(1, 4)]
+  gene_anno_sub <- gene_anno[gene_anno$ensembl %in% rownames(mat), ]
+  gene_anno_sub <- gene_anno_sub[match(rownames(mat), gene_anno_sub$ensembl), ]
+  rownames(mat) <- gene_anno_sub$symbol
+  col_range <- c(
+    min(logcounts(mat)),
+    (min(logcounts(mat)) + max(logcounts(mat))) / 2,
+    max(logcounts(mat))
+  )
+  ht <- draw(
+    Heatmap(
+      logcounts(mat),
+      name = "log2 + 1 Gene Expression",
+      col = colorRamp2(col_range, colors = c("blue", "white", "red")),
+      cluster_rows = FALSE,
+      cluster_columns = FALSE,
+      show_column_names = FALSE,
+      top_annotation = top_anno4,
+      column_split = mat$Group,
+      column_title = gse,
+      rect_gp = gpar(col = "black", lwd = 0.5),
+      column_gap = unit(1, units = "mm"),
+      row_names_gp = gpar(fontsize = 9),
+      column_title_gp = gpar(fontsize = 12),
+      row_names_side = "left",
+      heatmap_legend_param = list(
+        labels_gp = gpar(fontsize = 10), title_gp = gpar(fontsize = 12),
+        border = "lightgrey", title_position = "topcenter",
+        grid_height = unit(4, "mm"), direction = "horizontal"
+      )
+    ),
+    heatmap_legend_side = "top"
+  )
+  ht
+}
+```
+
+</div>
+<div>
+
+```{r, fig.width = 7, fig.height = 8}
+gse_plot <- "trace-amine receptor activity"
+for (gse in gse_plot) {
+  genes <- unlist(geneIds(gene_sets_sim[names(gene_sets_sim) %in% gse]))
+  mat <- sim[rownames(sim) %in% genes, c(1, 4)]
+  gene_anno_sub <- gene_anno[gene_anno$ensembl %in% rownames(mat), ]
+  gene_anno_sub <- gene_anno_sub[match(rownames(mat), gene_anno_sub$ensembl), ]
+  rownames(mat) <- gene_anno_sub$symbol
+  col_range <- c(
+    min(logcounts(mat)),
+    (min(logcounts(mat)) + max(logcounts(mat))) / 2,
+    max(logcounts(mat))
+  )
+  ht <- draw(
+    Heatmap(
+      logcounts(mat),
+      name = "log2 + 1 Gene Expression",
+      col = colorRamp2(col_range, colors = c("blue", "white", "red")),
+      cluster_rows = FALSE,
+      cluster_columns = FALSE,
+      show_column_names = FALSE,
+      top_annotation = top_anno4,
+      column_split = mat$Group,
+      column_title = gse,
+      rect_gp = gpar(col = "black", lwd = 0.5),
+      column_gap = unit(1, units = "mm"),
+      row_names_gp = gpar(fontsize = 9),
+      column_title_gp = gpar(fontsize = 12),
+      row_names_side = "left",
+      heatmap_legend_param = list(
+        labels_gp = gpar(fontsize = 10), title_gp = gpar(fontsize = 12),
+        border = "lightgrey", title_position = "topcenter",
+        grid_height = unit(4, "mm"), direction = "horizontal"
+      )
+    ),
+    heatmap_legend_side = "top"
+  )
+  ht
+}
+```
+
+</div>
+</div>
+
+### Tau Protein Binding
+
+<div style='display:flex; flex-direction:row; justify-content:space-evenly;'>
+<div>
+
+```{r, fig.width = 7, fig.height = 8}
+gse_plot <- "tau protein binding"
+for (gse in gse_plot) {
+  genes <- unlist(geneIds(gene_sets_sim[names(gene_sets_sim) %in% gse]))
+  mat <- sim[rownames(sim) %in% genes, c(1, 5)]
+  gene_anno_sub <- gene_anno[gene_anno$ensembl %in% rownames(mat), ]
+  gene_anno_sub <- gene_anno_sub[match(rownames(mat), gene_anno_sub$ensembl), ]
+  rownames(mat) <- gene_anno_sub$symbol
+  col_range <- c(
+    min(logcounts(mat)),
+    (min(logcounts(mat)) + max(logcounts(mat))) / 2,
+    max(logcounts(mat))
+  )
+  ht <- draw(
+    Heatmap(
+      logcounts(mat),
+      name = "log2 + 1 Gene Expression",
+      col = colorRamp2(col_range, colors = c("blue", "white", "red")),
+      cluster_rows = FALSE,
+      cluster_columns = FALSE,
+      show_column_names = FALSE,
+      top_annotation = top_anno4,
+      column_split = mat$Group,
+      column_title = gse,
+      rect_gp = gpar(col = "black", lwd = 0.5),
+      column_gap = unit(1, units = "mm"),
+      row_names_gp = gpar(fontsize = 9),
+      column_title_gp = gpar(fontsize = 12),
+      row_names_side = "left",
+      heatmap_legend_param = list(
+        labels_gp = gpar(fontsize = 10), title_gp = gpar(fontsize = 12),
+        border = "lightgrey", title_position = "topcenter",
+        grid_height = unit(4, "mm"), direction = "horizontal"
+      )
+    ),
+    heatmap_legend_side = "top"
+  )
+  ht
+}
+```
+
+</div>
+<div>
+
+```{r, fig.width = 7, fig.height = 8}
+gse_plot <- "tau protein binding"
+for (gse in gse_plot) {
+  genes <- unlist(geneIds(gene_sets_sim[names(gene_sets_sim) %in% gse]))
+  mat <- sim[rownames(sim) %in% genes, c(1, 5)]
+  gene_anno_sub <- gene_anno[gene_anno$ensembl %in% rownames(mat), ]
+  gene_anno_sub <- gene_anno_sub[match(rownames(mat), gene_anno_sub$ensembl), ]
+  rownames(mat) <- gene_anno_sub$symbol
+  counts(mat) <- t(
+    apply(
+      counts(mat), MARGIN = 1,
+      FUN = function (x) ((2 * (x - min(x)) / (max(x) - min(x))) - 1)
+    )
+  )
+  ht <- draw(
+    Heatmap(
+      counts(mat),
+      name = "Scaled Gene Expression",
+      col = colorRamp2(c(-1, 0, 1), colors = c("blue", "white", "red")),
+      cluster_rows = FALSE,
+      cluster_columns = FALSE,
+      show_column_names = FALSE,
+      top_annotation = top_anno4,
+      column_split = mat$Group,
+      column_title = gse,
+      rect_gp = gpar(col = "black", lwd = 0.5),
+      column_gap = unit(1, units = "mm"),
+      row_names_gp = gpar(fontsize = 9),
+      column_title_gp = gpar(fontsize = 12),
+      row_names_side = "left",
+      heatmap_legend_param = list(
+        labels_gp = gpar(fontsize = 10), title_gp = gpar(fontsize = 12),
+        border = "lightgrey", title_position = "topcenter",
+        grid_height = unit(4, "mm"), direction = "horizontal"
+      )
+    ),
+    heatmap_legend_side = "top"
+  )
+  ht
+}
+```
+
+</div>
+</div>
+
+### Neurofibrillary Tangle
+
+<div style='display:flex; flex-direction:row; justify-content:space-evenly;'>
+<div>
+
+```{r, fig.width = 7, fig.height = 8}
+gse_plot <- "neurofibrillary tangle"
+for (gse in gse_plot) {
+  genes <- unlist(geneIds(gene_sets_sim[names(gene_sets_sim) %in% gse]))
+  mat <- sim[rownames(sim) %in% genes, c(1, 6)]
+  gene_anno_sub <- gene_anno[gene_anno$ensembl %in% rownames(mat), ]
+  gene_anno_sub <- gene_anno_sub[match(rownames(mat), gene_anno_sub$ensembl), ]
+  rownames(mat) <- gene_anno_sub$symbol
+  col_range <- c(
+    min(logcounts(mat)),
+    (min(logcounts(mat)) + max(logcounts(mat))) / 2,
+    max(logcounts(mat))
+  )
+  ht <- draw(
+    Heatmap(
+      logcounts(mat),
+      name = "log2 + 1 Gene Expression",
+      col = colorRamp2(col_range, colors = c("blue", "white", "red")),
+      cluster_rows = FALSE,
+      cluster_columns = FALSE,
+      show_column_names = FALSE,
+      top_annotation = top_anno4,
+      column_split = mat$Group,
+      column_title = gse,
+      rect_gp = gpar(col = "black", lwd = 0.5),
+      column_gap = unit(1, units = "mm"),
+      row_names_gp = gpar(fontsize = 9),
+      column_title_gp = gpar(fontsize = 12),
+      row_names_side = "left",
+      heatmap_legend_param = list(
+        labels_gp = gpar(fontsize = 10), title_gp = gpar(fontsize = 12),
+        border = "lightgrey", title_position = "topcenter",
+        grid_height = unit(4, "mm"), direction = "horizontal"
+      )
+    ),
+    heatmap_legend_side = "top"
+  )
+  ht
+}
+```
+
+</div>
+<div>
+
+```{r, fig.width = 7, fig.height = 8}
+gse_plot <- "neurofibrillary tangle"
+for (gse in gse_plot) {
+  genes <- unlist(geneIds(gene_sets_sim[names(gene_sets_sim) %in% gse]))
+  mat <- sim[rownames(sim) %in% genes, c(1, 6)]
+  gene_anno_sub <- gene_anno[gene_anno$ensembl %in% rownames(mat), ]
+  gene_anno_sub <- gene_anno_sub[match(rownames(mat), gene_anno_sub$ensembl), ]
+  rownames(mat) <- gene_anno_sub$symbol
+  counts(mat) <- t(
+    apply(
+      counts(mat), MARGIN = 1,
+      FUN = function (x) ((2 * (x - min(x)) / (max(x) - min(x))) - 1)
+    )
+  )
+  ht <- draw(
+    Heatmap(
+      counts(mat),
+      name = "Scaled Gene Expression",
+      col = colorRamp2(c(-1, 0, 1), colors = c("blue", "white", "red")),
+      cluster_rows = FALSE,
+      cluster_columns = FALSE,
+      show_column_names = FALSE,
+      top_annotation = top_anno4,
+      column_split = mat$Group,
+      column_title = gse,
+      rect_gp = gpar(col = "black", lwd = 0.5),
+      column_gap = unit(1, units = "mm"),
+      row_names_gp = gpar(fontsize = 9),
+      column_title_gp = gpar(fontsize = 12),
+      row_names_side = "left",
+      heatmap_legend_param = list(
+        labels_gp = gpar(fontsize = 10), title_gp = gpar(fontsize = 12),
+        border = "lightgrey", title_position = "topcenter",
+        grid_height = unit(4, "mm"), direction = "horizontal"
+      )
+    ),
+    heatmap_legend_side = "top"
+  )
+  ht
+}
+```
+
+</div>
+</div>
+
+### High vs. Low Variability
+
+<div style='display:flex; flex-direction:row; justify-content:space-evenly;'>
+<div>
+
+```{r, fig.width = 7, fig.height = 8}
+gse_plot <- "trace-amine receptor activity"
+for (gse in gse_plot) {
+  genes <- unlist(geneIds(gene_sets_sim[names(gene_sets_sim) %in% gse]))
+  mat <- sim[rownames(sim) %in% genes, c(1, 2, 3)]
+  gene_anno_sub <- gene_anno[gene_anno$ensembl %in% rownames(mat), ]
+  gene_anno_sub <- gene_anno_sub[match(rownames(mat), gene_anno_sub$ensembl), ]
+  rownames(mat) <- gene_anno_sub$symbol
+  col_range <- c(
+    min(logcounts(mat)),
+    (min(logcounts(mat)) + max(logcounts(mat))) / 2,
+    max(logcounts(mat))
+  )
+  ht <- draw(
+    Heatmap(
+      logcounts(mat),
+      name = "log2 + 1 Gene Expression",
+      col = colorRamp2(col_range, colors = c("blue", "white", "red")),
+      cluster_rows = FALSE,
+      cluster_columns = FALSE,
+      show_column_names = FALSE,
+      top_annotation = top_anno5,
+      column_split = mat$Group,
+      column_title = gse,
+      rect_gp = gpar(col = "black", lwd = 0.5),
+      column_gap = unit(1, units = "mm"),
+      row_names_gp = gpar(fontsize = 9),
+      column_title_gp = gpar(fontsize = 12),
+      row_names_side = "left",
+      heatmap_legend_param = list(
+        labels_gp = gpar(fontsize = 10), title_gp = gpar(fontsize = 12),
+        border = "lightgrey", title_position = "topcenter",
+        grid_height = unit(4, "mm"), direction = "horizontal"
+      )
+    ),
+    heatmap_legend_side = "top"
+  )
+  ht
+}
+```
+
+</div>
+<div>
+
+```{r, fig.width = 7, fig.height = 8}
+gse_plot <- "synaptobrevin 2-SNAP-25-syntaxin-1a-complexin I complex"
+for (gse in gse_plot) {
+  genes <- unlist(geneIds(gene_sets_sim[names(gene_sets_sim) %in% gse]))
+  mat <- sim[rownames(sim) %in% genes, c(1, 2, 3)]
+  gene_anno_sub <- gene_anno[gene_anno$ensembl %in% rownames(mat), ]
+  gene_anno_sub <- gene_anno_sub[match(rownames(mat), gene_anno_sub$ensembl), ]
+  rownames(mat) <- gene_anno_sub$symbol
+  col_range <- c(
+    min(logcounts(mat)),
+    (min(logcounts(mat)) + max(logcounts(mat))) / 2,
+    max(logcounts(mat))
+  )
+  ht <- draw(
+    Heatmap(
+      logcounts(mat),
+      name = "log2 + 1 Gene Expression",
+      col = colorRamp2(col_range, colors = c("blue", "white", "red")),
+      cluster_rows = FALSE,
+      cluster_columns = FALSE,
+      show_column_names = FALSE,
+      top_annotation = top_anno5,
+      column_split = mat$Group,
+      column_title = gse,
+      rect_gp = gpar(col = "black", lwd = 0.5),
+      column_gap = unit(1, units = "mm"),
+      row_names_gp = gpar(fontsize = 9),
+      column_title_gp = gpar(fontsize = 12),
+      row_names_side = "left",
+      heatmap_legend_param = list(
+        labels_gp = gpar(fontsize = 10), title_gp = gpar(fontsize = 12),
+        border = "lightgrey", title_position = "topcenter",
+        grid_height = unit(4, "mm"), direction = "horizontal"
+      )
+    ),
+    heatmap_legend_side = "top"
+  )
+  ht
+}
+```
+
+</div>
+</div>
+
+### Differential Expression (NFT vs. CTRL)
+
+<div style='display:flex; flex-direction:row; justify-content:space-evenly;'>
+<div>
+
+```{r, fig.width = 7, fig.height = 8}
+gse_plot <- "neurofibrillary tangle"
+for (gse in gse_plot) {
+  genes <- unlist(geneIds(gene_sets_sim[names(gene_sets_sim) %in% gse]))
+  mat <- sim[rownames(sim) %in% genes, c(7, 8)]
+  gene_anno_sub <- gene_anno[gene_anno$ensembl %in% rownames(mat), ]
+  gene_anno_sub <- gene_anno_sub[match(rownames(mat), gene_anno_sub$ensembl), ]
+  rownames(mat) <- gene_anno_sub$symbol
+  col_range <- c(
+    min(logcounts(mat)),
+    (min(logcounts(mat)) + max(logcounts(mat))) / 2,
+    max(logcounts(mat))
+  )
+  ht <- draw(
+    Heatmap(
+      logcounts(mat),
+      name = "log2 + 1 Gene Expression",
+      col = colorRamp2(col_range, colors = c("blue", "white", "red")),
+      cluster_rows = FALSE,
+      cluster_columns = FALSE,
+      show_column_names = FALSE,
+      top_annotation = top_anno6,
+      column_split = mat$Group,
+      column_title = gse,
+      rect_gp = gpar(col = "black", lwd = 0.5),
+      column_gap = unit(1, units = "mm"),
+      row_names_gp = gpar(fontsize = 9),
+      column_title_gp = gpar(fontsize = 12),
+      row_names_side = "left",
+      heatmap_legend_param = list(
+        labels_gp = gpar(fontsize = 10), title_gp = gpar(fontsize = 12),
+        border = "lightgrey", title_position = "topcenter",
+        grid_height = unit(4, "mm"), direction = "horizontal"
+      )
+    ),
+    heatmap_legend_side = "top"
+  )
+  ht
+}
+```
+
+</div>
+<div>
+
+```{r, fig.width = 7, fig.height = 8}
+gse_plot <- "CHOP-ATF4 complex"
+for (gse in gse_plot) {
+  genes <- unlist(geneIds(gene_sets_sim[names(gene_sets_sim) %in% gse]))
+  mat <- sim[rownames(sim) %in% genes, c(7, 8)]
+  gene_anno_sub <- gene_anno[gene_anno$ensembl %in% rownames(mat), ]
+  gene_anno_sub <- gene_anno_sub[match(rownames(mat), gene_anno_sub$ensembl), ]
+  rownames(mat) <- gene_anno_sub$symbol
+  col_range <- c(
+    min(logcounts(mat)),
+    (min(logcounts(mat)) + max(logcounts(mat))) / 2,
+    max(logcounts(mat))
+  )
+  ht <- draw(
+    Heatmap(
+      logcounts(mat),
+      name = "log2 + 1 Gene Expression",
+      col = colorRamp2(col_range, colors = c("blue", "white", "red")),
+      cluster_rows = FALSE,
+      cluster_columns = FALSE,
+      show_column_names = FALSE,
+      top_annotation = top_anno6,
+      column_split = mat$Group,
+      column_title = gse,
+      rect_gp = gpar(col = "black", lwd = 0.5),
+      column_gap = unit(1, units = "mm"),
+      row_names_gp = gpar(fontsize = 9),
+      column_title_gp = gpar(fontsize = 12),
+      row_names_side = "left",
+      heatmap_legend_param = list(
+        labels_gp = gpar(fontsize = 10), title_gp = gpar(fontsize = 12),
+        border = "lightgrey", title_position = "topcenter",
+        grid_height = unit(4, "mm"), direction = "horizontal"
+      )
+    ),
+    heatmap_legend_side = "top"
+  )
+  ht
+}
+```
+
+</div>
+</div>
+
 ```{r, include = FALSE}
-rm(ht_list, loc1, loc2, mat, out, row_anno, tmp, top_anno2, top_anno3)
+rm(
+  ht_list, loc1, loc2, mat, out, row_anno, tmp, top_anno, top_anno2, top_anno3,
+  top_anno4, top_anno5, top_anno6, top_anno7, top_anno8, out_sim, gene_sets_sim,
+  gene_anno, ht, dge_orig, dge, gene_anno_sub, gene_sets, grid_list, sim,
+  default_mat
+)
 gc()
 ```
