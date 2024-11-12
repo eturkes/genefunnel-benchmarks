@@ -232,11 +232,11 @@ adjust_variability <- function(orig_vector, high_var = FALSE) {
   scaled_values <- orig_vector
 
   if (high_var) {
-    scaling_factors <- 1 + (0.01 * abs(scaled_values - orig_mean) / orig_mean)
+    scaling_factors <- 1 + (0.025 * abs(scaled_values - orig_mean) / orig_mean)
   } else {
-    scaling_factors <- 1 *
-      abs(scaled_values - orig_mean) / max(abs(scaled_values - orig_mean))
-      replace <- which(scaling_factors >= 1)
+    scaling_factors <- 10 * abs(scaled_values - orig_mean) /
+      max(abs(scaled_values - orig_mean))
+    replace <- which(scaling_factors >= 1)
     scaling_factors <- 1 - scaling_factors
   }
   scaled_values <- orig_mean + ((scaled_values - orig_mean) * scaling_factors)
@@ -245,6 +245,9 @@ adjust_variability <- function(orig_vector, high_var = FALSE) {
     scaled_values[scaled_values < 0] <- 0
     scaled_values <- (scaled_values / sum(scaled_values)) * orig_sum
   } else {
+    for (idx in replace) {
+      scaled_values[idx] <- orig_vector[idx]
+    }
     scaled_values <- scaled_values * (orig_sum / sum(scaled_values))
   }
 
@@ -1285,7 +1288,12 @@ plot_grid(grid_list[[1]], grid_list[[2]], grid_list[[3]], nrow = 3)
 </div>
 </div>
 
-### High vs. Low Variability
+### Low vs. High Variability
+
+In this section, the original column is modified producing columns with either lower or higher variability.
+More specifically, the lower variability column will have values more closely centered around the mean, while higher will have a greater spread of values.
+In both cases, the modification is done in a way that does not change the rank between genes as well as retains their relative distances from each other in terms of expression.
+This helps keep enriched gene sets comparable between the columns.
 
 <div style='display:flex; flex-direction:row; justify-content:space-evenly;'>
 <div>
@@ -1300,23 +1308,15 @@ col_range <- c(
   max(counts(mat))
 )
 
-tmp <- mat[order(counts(mat[ , 2]) / counts(mat[ , 1]), decreasing = TRUE), ]
-rownames <- rownames(tmp)[1:10]
-tmp <- mat[order(counts(mat[ , 2]) / counts(mat[ , 1]), decreasing = FALSE), ]
-rownames <- c(rownames, rownames(tmp)[1:10])
+tmp <- mat[order(counts(mat[ , 1]), decreasing = TRUE), ]
+rownames <- rownames(tmp)[1:20]
 mat <- mat[rownames(mat) %in% rownames, ]
 mat <- mat[match(rownames, rownames(mat)), ]
-counts(mat) <- t(
-  apply(
-    counts(mat), MARGIN = 1,
-    FUN = function (x) ((2 * (x - min(x)) / (max(x) - min(x))) - 1)
-  )
-)
 draw(
   Heatmap(
     counts(mat),
     name = names(out_sim)[[6]],
-    col = colorRamp2(c(-1, 0, 1), colors = c("blue", "white", "red")),
+    col = colorRamp2(col_range, colors = c("blue", "white", "red")),
     cluster_rows = FALSE,
     cluster_columns = FALSE,
     show_column_names = FALSE,
@@ -1345,21 +1345,6 @@ draw(
 <div>
 
 ```{r, fig.width = 8, fig.height = 7}
-mat <- SingleCellExperiment(list(counts = out_sim[[6]]))
-mat$Group <- sim$Group
-mat <- mat[ , c(1, 2, 3)]
-col_range <- c(
-  min(counts(mat)),
-  (min(counts(mat)) + max(counts(mat))) / 2,
-  max(counts(mat))
-)
-
-tmp <- mat[order(counts(mat[ , 3]) / counts(mat[ , 1]), decreasing = TRUE), ]
-rownames <- rownames(tmp)[1:10]
-tmp <- mat[order(counts(mat[ , 3]) / counts(mat[ , 1]), decreasing = FALSE), ]
-rownames <- c(rownames, rownames(tmp)[1:10])
-mat <- mat[rownames(mat) %in% rownames, ]
-mat <- mat[match(rownames, rownames(mat)), ]
 counts(mat) <- t(
   apply(
     counts(mat), MARGIN = 1,
@@ -1369,7 +1354,7 @@ counts(mat) <- t(
 draw(
   Heatmap(
     counts(mat),
-    name = names(out_sim)[[6]],
+    name = paste(names(out_sim)[[6]], "Scaled", sep = " "),
     col = colorRamp2(c(-1, 0, 1), colors = c("blue", "white", "red")),
     cluster_rows = FALSE,
     cluster_columns = FALSE,
@@ -1803,13 +1788,13 @@ for (gse in gse_plot) {
 </div>
 </div>
 
-### High vs. Low Variability
+### Low vs. High Variability
 
 <div style='display:flex; flex-direction:row; justify-content:space-evenly;'>
 <div>
 
 ```{r, fig.width = 7, fig.height = 8}
-gse_plot <- "trace-amine receptor activity"
+gse_plot <- "synaptic vesicle clustering"
 for (gse in gse_plot) {
   genes <- unlist(geneIds(gene_sets_sim[names(gene_sets_sim) %in% gse]))
   mat <- sim[rownames(sim) %in% genes, c(1, 2, 3)]
@@ -1902,7 +1887,7 @@ for (gse in gse_plot) {
 <div>
 
 ```{r, fig.width = 7, fig.height = 8}
-gse_plot <- "neurofibrillary tangle"
+gse_plot <- "tau protein binding"
 for (gse in gse_plot) {
   genes <- unlist(geneIds(gene_sets_sim[names(gene_sets_sim) %in% gse]))
   mat <- sim[rownames(sim) %in% genes, c(7, 8)]
