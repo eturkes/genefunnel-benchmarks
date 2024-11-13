@@ -217,6 +217,7 @@ if (file.exists(rds)) {
 gene_sets_sim <- readRDS(file.path(data_dir, "gene_sets_sim.rds"))
 
 sim <- sim[rownames(sim) %in% unlist(geneIds(gene_sets_sim)), ]
+sc <- sim
 sim <- suppressWarnings(
   aggregateAcrossCells(
     sim, colData(sim)[ , "Group"],
@@ -362,6 +363,84 @@ if (file.exists(rds)) {
   out_sim[[6]] <- pmax(out_sim[[6]], 0)
 
   saveRDS(out_sim, file = rds)
+}
+
+sc <- counts(sc[ , which(sc$Group == "Group 1")])
+set.seed(1)
+sc <- sc[ , sample(ncol(sc), size = 1000)]
+
+tmp <- bplapply(
+  seq_len(ncol(sc)),
+  function(i) adjust_variability(sc[, i], high_var = FALSE),
+  BPPARAM = MulticoreParam(availableCores())
+)
+low_var <- do.call(cbind, tmp)
+tmp <- bplapply(
+  seq_len(ncol(sc)),
+  function(i) adjust_variability(sc[, i], high_var = TRUE),
+  BPPARAM = MulticoreParam(availableCores())
+)
+high_var <- do.call(cbind, tmp)
+
+sc <- cbind(cbind(sc, low_var), high_var)
+sc <- SingleCellExperiment(list(counts = sc))
+sc$Group <- factor(
+  c(
+    rep("Group1", times = ncol(low_var)),
+    rep("Group2", times = ncol(low_var)),
+    rep("Group3", times = ncol(low_var))
+  )
+)
+logcounts(sc) <- Matrix(log2(counts(sc) + 1), sparse = TRUE)
+
+rds <- file.path(cache_dir, "out_sc.rds")
+if (file.exists(rds)) {
+  out_sc <- readRDS(rds)
+} else {
+
+  out_sc <- vector("list", length = 6)
+  names(out_sc) <- c(
+    "GSVA Poisson", "GSVA Gaussian", "ssGSEA", "PLAGE", "Z-score", "GeneFunnel"
+  )
+
+  tmp <- gsvaParam(
+    counts(sc), gene_sets_sim, minSize = 2, kcdf = "Poisson"
+  )
+  gc()
+  out_sc[[1]] <- gsva(tmp, BPPARAM = MulticoreParam(availableCores()))
+
+  tmp <- gsvaParam(
+    logcounts(sc), gene_sets_sim, minSize = 2, kcdf = "Gaussian"
+  )
+  gc()
+  out_sc[[2]] <- gsva(tmp, BPPARAM = MulticoreParam(availableCores()))
+
+  tmp <- ssgseaParam(
+    logcounts(sc), minSize = 2, gene_sets_sim, normalize = FALSE
+  )
+  gc()
+  out_sc[[3]] <- gsva(tmp, BPPARAM = MulticoreParam(availableCores()))
+
+  tmp <- zscoreParam(
+    logcounts(sc), minSize = 2, gene_sets_sim
+  )
+  gc()
+  out_sc[[4]] <- gsva(tmp, BPPARAM = MulticoreParam(availableCores()))
+
+  # tmp <- plageParam(
+  #   logcounts(sc), minSize = 2, gene_sets_sim
+  # )
+  # gc()
+  # out_sc[[5]] <- gsva(tmp, BPPARAM = MulticoreParam(availableCores()))
+
+  gc()
+  out_sc[[6]] <- genefunnel(
+    counts(sc), geneIds(gene_sets_sim),
+    BPPARAM = MulticoreParam(availableCores())
+  )
+  out_sc[[6]] <- pmax(out_sc[[6]], 0)
+
+  saveRDS(out_sc, file = rds)
 }
 ```
 
@@ -1974,12 +2053,31 @@ for (gse in gse_plot) {
 </div>
 </div>
 
+Real Dataset Single-cell Level
+===
+
+Row {.tabset}
+---
+
+### Background
+
+> We use the same real dataset as before but this time apply the methods on the single-cell rather than pseudobulk level.
+
+```{r}
+```
+
+### Gene Set Scoring
+
+```{r}
+
+```
+
 ```{r, include = FALSE}
 rm(
   ht_list, loc1, loc2, mat, out, row_anno, tmp, top_anno, top_anno2, top_anno3,
   top_anno4, top_anno5, top_anno6, top_anno7, top_anno8, out_sim, gene_sets_sim,
   gene_anno, ht, dge_orig, dge, gene_anno_sub, gene_sets, grid_list, sim,
-  default_mat
+  default_mat, sc, out_sc
 )
 gc()
 ```
