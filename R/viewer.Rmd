@@ -2,7 +2,6 @@
 title: "GeneFunnel Benchmarks Viewer"
 output:
   flexdashboard::flex_dashboard:
-    source_code: embed
     orientation: rows
     runtime: shiny
 ---
