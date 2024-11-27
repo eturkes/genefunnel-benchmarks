@@ -30,7 +30,7 @@ library(conflicted)
 packages <- c(
   "Rcpp", "Matrix", "shinyMatrix", "ComplexHeatmap", "circlize", "GSVA",
   "BiocParallel", "parallelly", "cowplot", "knitr", "kableExtra", "GSEABase",
-  "scuttle", "Seurat", "edgeR"
+  "scuttle", "Seurat", "edgeR", "bench", "ggplot2"
 )
 lapply(packages, FUN = library, character.only = TRUE)
 
@@ -233,9 +233,9 @@ adjust_variability <- function(orig_vector, high_var = FALSE) {
   scaled_values <- orig_vector
 
   if (high_var) {
-    scaling_factors <- 1 + (0.025 * abs(scaled_values - orig_mean) / orig_mean)
+    scaling_factors <- 1 + (0.015 * abs(scaled_values - orig_mean) / orig_mean)
   } else {
-    scaling_factors <- 10 * abs(scaled_values - orig_mean) /
+    scaling_factors <- 2 * abs(scaled_values - orig_mean) /
       max(abs(scaled_values - orig_mean))
     replace <- which(scaling_factors >= 1)
     scaling_factors <- 1 - scaling_factors
@@ -342,17 +342,17 @@ if (file.exists(rds)) {
   out_sim[[2]] <- gsva(tmp, BPPARAM = MulticoreParam(availableCores()))
 
   tmp <- ssgseaParam(
-    logcounts(sim), minSize = 2, gene_sets_sim, normalize = FALSE
+    logcounts(sim), gene_sets_sim, minSize = 2, normalize = FALSE
   )
   out_sim[[3]] <- gsva(tmp, BPPARAM = MulticoreParam(availableCores()))
 
   tmp <- zscoreParam(
-    logcounts(sim), minSize = 2, gene_sets_sim
+    logcounts(sim), gene_sets_sim, minSize = 2
   )
   out_sim[[4]] <- gsva(tmp, BPPARAM = MulticoreParam(availableCores()))
 
   tmp <- plageParam(
-    logcounts(sim), minSize = 2, gene_sets_sim
+    logcounts(sim), gene_sets_sim, minSize = 2
   )
   out_sim[[5]] <- gsva(tmp, BPPARAM = MulticoreParam(availableCores()))
 
@@ -365,9 +365,130 @@ if (file.exists(rds)) {
   saveRDS(out_sim, file = rds)
 }
 
+sim_sub <- sim[ , 1:6]
+counts(sim_sub) <- Matrix(counts(sim_sub), sparse = TRUE)
+logcounts(sim_sub) <- Matrix(logcounts(sim_sub), sparse = TRUE)
+
+rds <- file.path(cache_dir, "bench.rds")
+if (file.exists(rds)) {
+  bench <- readRDS(rds)
+} else {
+
+  gc()
+  bench <- mark(
+    gsva(
+      gsvaParam(
+        counts(sim_sub), gene_sets_sim, minSize = 2, kcdf = "Poisson"
+      ),
+      BPPARAM = SerialParam()
+    ),
+    gsva(
+      gsvaParam(
+        logcounts(sim_sub), gene_sets_sim, minSize = 2, kcdf = "Gaussian"
+      ),
+      BPPARAM = SerialParam()
+    ),
+    gsva(
+      ssgseaParam(
+        logcounts(sim_sub), gene_sets_sim, minSize = 2, normalize = FALSE
+      ),
+      BPPARAM = SerialParam()
+    ),
+    gsva(
+      zscoreParam(logcounts(sim_sub), gene_sets_sim, minSize = 2),
+      BPPARAM = SerialParam()
+    ),
+    gsva(
+      plageParam(as.matrix(logcounts(sim_sub)), gene_sets_sim, minSize = 2),
+      BPPARAM = SerialParam()
+    ),
+    genefunnel(
+      counts(sim_sub), geneIds(gene_sets_sim),
+      BPPARAM = SerialParam()
+    ),
+    iterations = 100,
+    check = FALSE,
+    filter_gc = FALSE
+  )
+  gc()
+
+  saveRDS(bench, file = rds)
+}
+
+sim_big <- cbind(
+  sim_sub, sim_sub, sim_sub, sim_sub, sim_sub,
+  sim_sub, sim_sub, sim_sub, sim_sub, sim_sub,
+  sim_sub, sim_sub, sim_sub, sim_sub, sim_sub,
+  sim_sub, sim_sub, sim_sub, sim_sub, sim_sub,
+  sim_sub, sim_sub, sim_sub, sim_sub, sim_sub,
+  sim_sub, sim_sub, sim_sub, sim_sub, sim_sub,
+  sim_sub, sim_sub, sim_sub, sim_sub, sim_sub,
+  sim_sub, sim_sub, sim_sub, sim_sub, sim_sub,
+  sim_sub, sim_sub, sim_sub, sim_sub, sim_sub,
+  sim_sub, sim_sub, sim_sub, sim_sub, sim_sub,
+  sim_sub, sim_sub, sim_sub, sim_sub, sim_sub,
+  sim_sub, sim_sub, sim_sub, sim_sub, sim_sub,
+  sim_sub, sim_sub, sim_sub, sim_sub, sim_sub,
+  sim_sub, sim_sub, sim_sub, sim_sub, sim_sub,
+  sim_sub, sim_sub, sim_sub, sim_sub, sim_sub,
+  sim_sub, sim_sub, sim_sub, sim_sub, sim_sub,
+  sim_sub, sim_sub, sim_sub, sim_sub, sim_sub,
+  sim_sub, sim_sub, sim_sub, sim_sub, sim_sub,
+  sim_sub, sim_sub, sim_sub, sim_sub, sim_sub,
+  sim_sub, sim_sub, sim_sub, sim_sub, sim_sub
+)
+
+rds <- file.path(cache_dir, "bench_big.rds")
+if (file.exists(rds)) {
+  bench_big <- readRDS(rds)
+} else {
+
+  cores <- availableCores()
+  gc()
+  bench_big <- mark(
+    gsva(
+      gsvaParam(
+        counts(sim_big), gene_sets_sim, minSize = 2, kcdf = "Poisson"
+      ),
+      BPPARAM = MulticoreParam(cores)
+    ),
+    gsva(
+      gsvaParam(
+        logcounts(sim_big), gene_sets_sim, minSize = 2, kcdf = "Gaussian"
+      ),
+      BPPARAM = MulticoreParam(cores)
+    ),
+    gsva(
+      ssgseaParam(
+        logcounts(sim_big), gene_sets_sim, minSize = 2, normalize = FALSE
+      ),
+      BPPARAM = MulticoreParam(cores)
+    ),
+    gsva(
+      zscoreParam(logcounts(sim_big), gene_sets_sim, minSize = 2),
+      BPPARAM = MulticoreParam(cores)
+    ),
+    gsva(
+      plageParam(as.matrix(logcounts(sim_big)), gene_sets_sim, minSize = 2),
+      BPPARAM = MulticoreParam(cores)
+    ),
+    genefunnel(
+      counts(sim_big), geneIds(gene_sets_sim),
+      BPPARAM = MulticoreParam(cores)
+    ),
+    iterations = 10,
+    check = FALSE,
+    memory = FALSE,
+    filter_gc = FALSE
+  )
+  gc()
+
+  saveRDS(bench_big, file = rds)
+}
+
 sc <- counts(sc[ , which(sc$Group == "Group 1")])
 set.seed(1)
-sc <- sc[ , sample(ncol(sc), size = 1000)]
+sc <- sc[ , sample(ncol(sc), size = 20)]
 
 tmp <- bplapply(
   seq_len(ncol(sc)),
@@ -416,22 +537,22 @@ if (file.exists(rds)) {
   out_sc[[2]] <- gsva(tmp, BPPARAM = MulticoreParam(availableCores()))
 
   tmp <- ssgseaParam(
-    logcounts(sc), minSize = 2, gene_sets_sim, normalize = FALSE
+    logcounts(sc), gene_sets_sim, minSize = 2, normalize = FALSE
   )
   gc()
   out_sc[[3]] <- gsva(tmp, BPPARAM = MulticoreParam(availableCores()))
 
   tmp <- zscoreParam(
-    logcounts(sc), minSize = 2, gene_sets_sim
+    logcounts(sc), gene_sets_sim, minSize = 2
   )
   gc()
   out_sc[[4]] <- gsva(tmp, BPPARAM = MulticoreParam(availableCores()))
 
-  # tmp <- plageParam(
-  #   logcounts(sc), minSize = 2, gene_sets_sim
-  # )
-  # gc()
-  # out_sc[[5]] <- gsva(tmp, BPPARAM = MulticoreParam(availableCores()))
+  tmp <- plageParam(
+    as.matrix(logcounts(sc)), gene_sets_sim, minSize = 2,
+  )
+  gc()
+  out_sc[[5]] <- gsva(tmp, BPPARAM = MulticoreParam(availableCores()))
 
   gc()
   out_sc[[6]] <- genefunnel(
@@ -442,6 +563,304 @@ if (file.exists(rds)) {
 
   saveRDS(out_sc, file = rds)
 }
+
+rds <- file.path(cache_dir, "bench_sc.rds")
+if (file.exists(rds)) {
+  bench_sc <- readRDS(rds)
+} else {
+
+  cores <- availableCores()
+  gc()
+  bench_sc <- mark(
+    gsva(
+      gsvaParam(
+        counts(sc), gene_sets_sim, minSize = 2, kcdf = "Poisson"
+      ),
+      BPPARAM = MulticoreParam(cores)
+    ),
+    gsva(
+      gsvaParam(
+        logcounts(sc), gene_sets_sim, minSize = 2, kcdf = "Gaussian"
+      ),
+      BPPARAM = MulticoreParam(cores)
+    ),
+    gsva(
+      ssgseaParam(
+        logcounts(sc), gene_sets_sim, minSize = 2, normalize = FALSE
+      ),
+      BPPARAM = MulticoreParam(cores)
+    ),
+    gsva(
+      zscoreParam(logcounts(sc), gene_sets_sim, minSize = 2),
+      BPPARAM = MulticoreParam(cores)
+    ),
+    gsva(
+      plageParam(as.matrix(logcounts(sc)), gene_sets_sim, minSize = 2),
+      BPPARAM = MulticoreParam(cores)
+    ),
+    genefunnel(
+      counts(sc), geneIds(gene_sets_sim),
+      BPPARAM = MulticoreParam(cores)
+    ),
+    iterations = 1,
+    check = FALSE,
+    memory = FALSE,
+    filter_gc = FALSE
+  )
+  gc()
+
+  saveRDS(bench_sc, file = rds)
+}
+
+sc_big <- cbind(sc, sc)
+
+rds <- file.path(cache_dir, "bench_sc2.rds")
+if (file.exists(rds)) {
+  bench_sc2 <- readRDS(rds)
+} else {
+
+  cores <- availableCores()
+  gc()
+  bench_sc2 <- mark(
+    gsva(
+      gsvaParam(
+        counts(sc_big), gene_sets_sim, minSize = 2, kcdf = "Poisson"
+      ),
+      BPPARAM = MulticoreParam(cores)
+    ),
+    gsva(
+      gsvaParam(
+        logcounts(sc_big), gene_sets_sim, minSize = 2, kcdf = "Gaussian"
+      ),
+      BPPARAM = MulticoreParam(cores)
+    ),
+    gsva(
+      ssgseaParam(
+        logcounts(sc_big), gene_sets_sim, minSize = 2, normalize = FALSE
+      ),
+      BPPARAM = MulticoreParam(cores)
+    ),
+    gsva(
+      zscoreParam(logcounts(sc_big), gene_sets_sim, minSize = 2),
+      BPPARAM = MulticoreParam(cores)
+    ),
+    gsva(
+      plageParam(as.matrix(logcounts(sc_big)), gene_sets_sim, minSize = 2),
+      BPPARAM = MulticoreParam(cores)
+    ),
+    genefunnel(
+      counts(sc_big), geneIds(gene_sets_sim),
+      BPPARAM = MulticoreParam(cores)
+    ),
+    iterations = 1,
+    check = FALSE,
+    memory = FALSE,
+    filter_gc = FALSE
+  )
+  gc()
+
+  saveRDS(bench_sc2, file = rds)
+}
+
+sc_big <- cbind(sc_big, sc_big)
+
+rds <- file.path(cache_dir, "bench_sc3.rds")
+if (file.exists(rds)) {
+  bench_sc3 <- readRDS(rds)
+} else {
+
+  cores <- availableCores()
+  gc()
+  bench_sc3 <- mark(
+    gsva(
+      gsvaParam(
+        counts(sc_big), gene_sets_sim, minSize = 2, kcdf = "Poisson"
+      ),
+      BPPARAM = MulticoreParam(cores)
+    ),
+    gsva(
+      gsvaParam(
+        logcounts(sc_big), gene_sets_sim, minSize = 2, kcdf = "Gaussian"
+      ),
+      BPPARAM = MulticoreParam(cores)
+    ),
+    gsva(
+      ssgseaParam(
+        logcounts(sc_big), gene_sets_sim, minSize = 2, normalize = FALSE
+      ),
+      BPPARAM = MulticoreParam(cores)
+    ),
+    gsva(
+      zscoreParam(logcounts(sc_big), gene_sets_sim, minSize = 2),
+      BPPARAM = MulticoreParam(cores)
+    ),
+    gsva(
+      plageParam(as.matrix(logcounts(sc_big)), gene_sets_sim, minSize = 2),
+      BPPARAM = MulticoreParam(cores)
+    ),
+    genefunnel(
+      counts(sc_big), geneIds(gene_sets_sim),
+      BPPARAM = MulticoreParam(cores)
+    ),
+    iterations = 1,
+    check = FALSE,
+    memory = FALSE,
+    filter_gc = FALSE
+  )
+  gc()
+
+  saveRDS(bench_sc3, file = rds)
+}
+
+sc_big <- cbind(sc_big, sc_big)
+
+rds <- file.path(cache_dir, "bench_sc4.rds")
+if (file.exists(rds)) {
+  bench_sc4 <- readRDS(rds)
+} else {
+
+  cores <- availableCores()
+  gc()
+  bench_sc4 <- mark(
+    gsva(
+      gsvaParam(
+        counts(sc_big), gene_sets_sim, minSize = 2, kcdf = "Poisson"
+      ),
+      BPPARAM = MulticoreParam(cores)
+    ),
+    gsva(
+      gsvaParam(
+        logcounts(sc_big), gene_sets_sim, minSize = 2, kcdf = "Gaussian"
+      ),
+      BPPARAM = MulticoreParam(cores)
+    ),
+    gsva(
+      ssgseaParam(
+        logcounts(sc_big), gene_sets_sim, minSize = 2, normalize = FALSE
+      ),
+      BPPARAM = MulticoreParam(cores)
+    ),
+    gsva(
+      zscoreParam(logcounts(sc_big), gene_sets_sim, minSize = 2),
+      BPPARAM = MulticoreParam(cores)
+    ),
+    gsva(
+      plageParam(as.matrix(logcounts(sc_big)), gene_sets_sim, minSize = 2),
+      BPPARAM = MulticoreParam(cores)
+    ),
+    genefunnel(
+      counts(sc_big), geneIds(gene_sets_sim),
+      BPPARAM = MulticoreParam(cores)
+    ),
+    iterations = 1,
+    check = FALSE,
+    memory = FALSE,
+    filter_gc = FALSE
+  )
+  gc()
+
+  saveRDS(bench_sc4, file = rds)
+}
+
+sc_big <- cbind(sc_big, sc_big)
+
+rds <- file.path(cache_dir, "bench_sc5.rds")
+if (file.exists(rds)) {
+  bench_sc5 <- readRDS(rds)
+} else {
+
+  cores <- availableCores()
+  gc()
+  bench_sc5 <- mark(
+    gsva(
+      gsvaParam(
+        counts(sc_big), gene_sets_sim, minSize = 2, kcdf = "Poisson"
+      ),
+      BPPARAM = MulticoreParam(cores)
+    ),
+    gsva(
+      gsvaParam(
+        logcounts(sc_big), gene_sets_sim, minSize = 2, kcdf = "Gaussian"
+      ),
+      BPPARAM = MulticoreParam(cores)
+    ),
+    gsva(
+      ssgseaParam(
+        logcounts(sc_big), gene_sets_sim, minSize = 2, normalize = FALSE
+      ),
+      BPPARAM = MulticoreParam(cores)
+    ),
+    gsva(
+      zscoreParam(logcounts(sc_big), gene_sets_sim, minSize = 2),
+      BPPARAM = MulticoreParam(cores)
+    ),
+    gsva(
+      plageParam(as.matrix(logcounts(sc_big)), gene_sets_sim, minSize = 2),
+      BPPARAM = MulticoreParam(cores)
+    ),
+    genefunnel(
+      counts(sc_big), geneIds(gene_sets_sim),
+      BPPARAM = MulticoreParam(cores)
+    ),
+    iterations = 1,
+    check = FALSE,
+    memory = FALSE,
+    filter_gc = FALSE
+  )
+  gc()
+
+  saveRDS(bench_sc5, file = rds)
+}
+
+# sc_big <- cbind(sc_big, sc_big)
+# 
+# rds <- file.path(cache_dir, "bench_sc6.rds")
+# if (file.exists(rds)) {
+#   bench_sc6 <- readRDS(rds)
+# } else {
+# 
+#   cores <- availableCores()
+#   gc()
+#   bench_sc6 <- mark(
+#     gsva(
+#       gsvaParam(
+#         counts(sc_big), gene_sets_sim, minSize = 2, kcdf = "Poisson"
+#       ),
+#       BPPARAM = MulticoreParam(cores)
+#     ),
+#     gsva(
+#       gsvaParam(
+#         logcounts(sc_big), gene_sets_sim, minSize = 2, kcdf = "Gaussian"
+#       ),
+#       BPPARAM = MulticoreParam(cores)
+#     ),
+#     gsva(
+#       ssgseaParam(
+#         logcounts(sc_big), gene_sets_sim, minSize = 2, normalize = FALSE
+#       ),
+#       BPPARAM = MulticoreParam(cores)
+#     ),
+#     gsva(
+#       zscoreParam(logcounts(sc_big), gene_sets_sim, minSize = 2),
+#       BPPARAM = MulticoreParam(cores)
+#     ),
+#     gsva(
+#       plageParam(as.matrix(logcounts(sc_big)), gene_sets_sim, minSize = 2),
+#       BPPARAM = MulticoreParam(cores)
+#     ),
+#     genefunnel(
+#       counts(sc_big), geneIds(gene_sets_sim),
+#       BPPARAM = MulticoreParam(cores)
+#     ),
+#     iterations = 1,
+#     check = FALSE,
+#     memory = FALSE,
+#     filter_gc = FALSE
+#   )
+#   gc()
+# 
+#   saveRDS(bench_sc6, file = rds)
+# }
 ```
 
 Algorithm Overview
@@ -825,10 +1244,10 @@ out[[2]] <- gsva(tmp, BPPARAM = MulticoreParam(availableCores()))
 tmp <- ssgseaParam(log2(mat + 1), gene_sets, minSize = 2, normalize = FALSE)
 out[[3]] <- gsva(tmp, BPPARAM = MulticoreParam(availableCores()))
 
-tmp <- zscoreParam(log2(mat + 1), minSize = 2, gene_sets)
+tmp <- zscoreParam(log2(mat + 1), gene_sets, minSize = 2)
 out[[4]] <- gsva(tmp, BPPARAM = MulticoreParam(availableCores()))
 
-tmp <- plageParam(log2(mat + 1), minSize = 2, gene_sets)
+tmp <- plageParam(log2(mat + 1), gene_sets, minSize = 2)
 out[[5]] <- gsva(tmp, BPPARAM = MulticoreParam(availableCores()))
 
 out[[6]] <- genefunnel(
@@ -2056,9 +2475,6 @@ for (gse in gse_plot) {
 Real Dataset Single-cell Level
 ===
 
-Row {.tabset}
----
-
 ### Background
 
 > We use the same real dataset as before but this time apply the methods on the single-cell rather than pseudobulk level.
@@ -2068,16 +2484,198 @@ Row {.tabset}
 
 ### Gene Set Scoring
 
-```{r}
+<div style='display:flex; flex-direction:row; justify-content:space-evenly;'>
+<div>
 
+```{r, fig.width = 8, fig.height = 7}
+grid_list <- vector("list", length = 3)
+
+for (i in c(1:3)) {
+  mat <- SingleCellExperiment(list(counts = out_sc[[i]]))
+  mat$Group <- sc$Group
+  mat <- mat[ , mat$Group == "Group1"]
+  col_range <- c(
+    min(counts(mat)),
+    (min(counts(mat)) + max(counts(mat))) / 2,
+    max(counts(mat))
+  )
+
+  tmp <- mat[order(rowSums(counts(mat)), decreasing = TRUE), ]
+  rownames <- rownames(tmp)[1:10]
+  mat <- mat[rownames(mat) %in% rownames, ]
+  mat <- mat[match(rownames, rownames(mat)), ]
+  grid_list[[i]] <- Heatmap(
+    counts(mat),
+    name = names(out_sc)[[i]],
+    col = colorRamp2(col_range, colors = c("blue", "white", "red")),
+    cluster_rows = FALSE,
+    cluster_columns = FALSE,
+    show_column_names = FALSE,
+    column_title = NULL,
+    rect_gp = gpar(col = "black", lwd = 0.5),
+    column_gap = unit(1, units = "mm"),
+    row_names_gp = gpar(fontsize = 8),
+    column_title_gp = gpar(fontsize = 16),
+    row_names_side = "left",
+    row_names_max_width = max_text_width(
+      rownames(mat), gp = gpar(fontsize = 8)
+    ),
+    heatmap_legend_param = list(
+      labels_gp = gpar(fontsize = 12), title_gp = gpar(fontsize = 14),
+      border = "lightgrey", title_position = "topcenter",
+      grid_height = unit(4, units = "mm"), direction = "horizontal"
+    )
+  )
+
+  grid_list[[i]] <- grid.grabExpr(
+    draw(grid_list[[i]], heatmap_legend_side = "top")
+  )
+}
+
+plot_grid(grid_list[[1]], grid_list[[2]], grid_list[[3]], nrow = 3)
 ```
+
+</div>
+<div>
+
+```{r, fig.width = 8, fig.height = 7}
+grid_list <- vector("list", length = 3)
+
+for (i in c(4, 6)) {
+  mat <- SingleCellExperiment(list(counts = out_sc[[i]]))
+  mat$Group <- sc$Group
+  mat <- mat[ , mat$Group == "Group1"]
+  col_range <- c(
+    min(counts(mat), na.rm = TRUE),
+    (min(counts(mat), na.rm = TRUE) + max(counts(mat), na.rm = TRUE)) / 2,
+    max(counts(mat), na.rm = TRUE)
+  )
+
+  tmp <- mat[order(rowSums(counts(mat)), decreasing = TRUE), ]
+  rownames <- rownames(tmp)[1:10]
+  mat <- mat[rownames(mat) %in% rownames, ]
+  mat <- mat[match(rownames, rownames(mat)), ]
+  grid_list[[i - 3]] <- Heatmap(
+    counts(mat),
+    name = names(out_sc)[[i]],
+    col = colorRamp2(col_range, colors = c("blue", "white", "red")),
+    cluster_rows = FALSE,
+    cluster_columns = FALSE,
+    show_column_names = FALSE,
+    column_title = NULL,
+    rect_gp = gpar(col = "black", lwd = 0.5),
+    column_gap = unit(1, units = "mm"),
+    row_names_gp = gpar(fontsize = 8),
+    column_title_gp = gpar(fontsize = 16),
+    row_names_side = "left",
+    row_names_max_width = max_text_width(
+      rownames(mat), gp = gpar(fontsize = 8)
+    ),
+    heatmap_legend_param = list(
+      labels_gp = gpar(fontsize = 12), title_gp = gpar(fontsize = 14),
+      border = "lightgrey", title_position = "topcenter",
+      grid_height = unit(4, units = "mm"), direction = "horizontal"
+    )
+  )
+
+  grid_list[[i - 3]] <- grid.grabExpr(
+    draw(grid_list[[i - 3]], heatmap_legend_side = "top")
+  )
+}
+
+plot_grid(grid_list[[1]], grid_list[[3]], nrow = 2)
+```
+
+</div>
+</div>
+
+Performance Benchmarks
+===
+
+Row {.tabset}
+---
+
+### Real Dataset (Pseudobulk, 6 Samples, Serial Processing)
+
+```{r}
+bench[ , 1] <- names(out_sim)
+bench[ , 1:9]
+```
+
+### Real Dataset (Pseudobulk, 60 Samples, Parallel Processing)
+
+```{r}
+bench_big[ , 1] <- names(out_sim)
+bench_big[ , 1:9]
+```
+
+### Real Dataset (Single-cell, 600 Samples, Parallel Processing)
+
+```{r}
+bench_sc[ , 1] <- names(out_sim)
+bench_sc[ , 1:9]
+
+bench_sc2[ , 1] <- names(out_sim)
+bench_sc2[ , 1:9]
+
+bench_sc3[ , 1] <- names(out_sim)
+bench_sc3[ , 1:9]
+
+bench_sc4[ , 1] <- names(out_sim)
+bench_sc4[ , 1:9]
+
+bench_sc5[ , 1] <- names(out_sim)
+bench_sc5[ , 1:9]
+
+bench_comb <- list(bench_sc, bench_sc2, bench_sc3, bench_sc4, bench_sc5)
+bench_comb <- do.call(
+  rbind,
+  lapply(
+    seq_along(bench_comb),
+    FUN = function(i) {
+      cbind(bench_comb[[i]], subset = paste0("subset", i))
+    }
+  )
+)
+bench_comb$subset <- factor(
+  bench_comb$subset, levels = unique(bench_comb$subset)
+)
+
+time_formatter <- function(x) {
+  minutes <- floor(x / 60)
+  seconds <- x %% 60
+  paste0(minutes, "m ", round(seconds), "s")
+}
+breaks <- c(2, 3, 5, 7, 10, 20, 30, 50, 70, 100, 200, 300, 500, 700, 1000, 1500)
+
+ggplot(
+  bench_comb, aes(
+    x = subset, y = median, color = expression, group = expression
+  )
+) +
+  geom_point(size = 3) +
+  geom_line() +
+  scale_y_log10(breaks = breaks, labels = time_formatter) +
+  expand_limits(y = 1500)
+  labs(
+    title = "Benchmarking Tools on Different Data Subsets",
+    x = "Data Subsets",
+    y = "Time Elapsed",
+    color = "Expression"
+  ) +
+  theme_minimal()
+```
+
+Row {.tabset}
+---
 
 ```{r, include = FALSE}
 rm(
   ht_list, loc1, loc2, mat, out, row_anno, tmp, top_anno, top_anno2, top_anno3,
   top_anno4, top_anno5, top_anno6, top_anno7, top_anno8, out_sim, gene_sets_sim,
   gene_anno, ht, dge_orig, dge, gene_anno_sub, gene_sets, grid_list, sim,
-  default_mat, sc, out_sc
+  default_mat, sc, out_sc, bench, bench_big, bench_sc, bench_sc_big, sim_sub,
+  sim_big, sc_big, bench_sc2, bench_sc3, bench_sc4, bench_sc5, bench_comb
 )
 gc()
 ```
