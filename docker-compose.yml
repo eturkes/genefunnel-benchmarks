@@ -20,13 +20,13 @@ version: "3"
 
 services:
   all:
-    image: eturkes/genefunnel-benchmarks:R4.3.3v7
+    image: eturkes/genefunnel-benchmarks:R4.3.3v8
     volumes:
       - ".:/home/rstudio/genefunnel-benchmarks:rw"
     command: Rscript -e "source('/home/rstudio/genefunnel-benchmarks/R/run_all.R')"
 
   rstudio:
-    image: eturkes/genefunnel-benchmarks:R4.3.3v7
+    image: eturkes/genefunnel-benchmarks:R4.3.3v8
     volumes:
       - ".:/home/rstudio/genefunnel-benchmarks:rw"
     ports:
