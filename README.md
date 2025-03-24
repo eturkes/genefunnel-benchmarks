@@ -3,7 +3,7 @@
 
 ```
 This file is part of genefunnel-benchmarks
-Copyright (C) 2024  Emir Turkes, UK DRI at UCL
+Copyright (C) 2024-2025  Emir Turkes, UK DRI at UCL
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
