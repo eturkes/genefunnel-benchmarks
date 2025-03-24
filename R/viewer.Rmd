@@ -123,8 +123,8 @@ vec <- c(
   rep(50, times = 10),
   c(90, 10, 90, 10, 90, 90, 10, 10, 90, 10),
   rep(100, times = 10),
-  rep(100, times = 5), rep(0, times = 5),
-  rep(100, times = 5), rep(NA, times = 5)
+  rep(100, times = 5), rep(NA, times = 5),
+  rep(100, times = 1), rep(0, times = 9)
 )
 set.seed(4)
 noise1 <- round(runif(10, min = -5, max = 5))
@@ -140,7 +140,7 @@ noise4 <- rep(0, times = 10)
 noise5 <- noise4
 
 default_mat <- matrix(
-  vec + c(noise1, noise2, noise3, noise4, noise5),
+  vec + c(noise1, noise2, noise5, noise4, noise5),
   nrow =  10,
   ncol = 5,
   dimnames = list(
@@ -232,9 +232,9 @@ adjust_variability <- function(orig_vector, high_var = FALSE) {
   scaled_values <- orig_vector
 
   if (high_var) {
-    scaling_factors <- 1 + (0.015 * abs(scaled_values - orig_mean) / orig_mean)
+    scaling_factors <- 1 + (0.01 * abs(scaled_values - orig_mean) / orig_mean)
   } else {
-    scaling_factors <- 2 * abs(scaled_values - orig_mean) /
+    scaling_factors <- 1 * abs(scaled_values - orig_mean) /
       max(abs(scaled_values - orig_mean))
     replace <- which(scaling_factors >= 1)
     scaling_factors <- 1 - scaling_factors
@@ -359,7 +359,7 @@ if (file.exists(rds)) {
     counts(sim), geneIds(gene_sets_sim),
     BPPARAM = MulticoreParam(availableCores())
   )
-  out_sim[[6]] <- pmax(out_sim[[6]], 0)
+  out_sim[[6]] <- out_sim[[6]]
 
   saveRDS(out_sim, file = rds)
 }
@@ -405,7 +405,7 @@ if (file.exists(rds)) {
       counts(sim_sub), geneIds(gene_sets_sim),
       BPPARAM = SerialParam()
     ),
-    iterations = 100,
+    iterations = 5,
     check = FALSE,
     filter_gc = FALSE
   )
@@ -475,7 +475,7 @@ if (file.exists(rds)) {
       counts(sim_big), geneIds(gene_sets_sim),
       BPPARAM = MulticoreParam(cores)
     ),
-    iterations = 10,
+    iterations = 5,
     check = FALSE,
     memory = FALSE,
     filter_gc = FALSE
@@ -558,7 +558,7 @@ if (file.exists(rds)) {
     counts(sc), geneIds(gene_sets_sim),
     BPPARAM = MulticoreParam(availableCores())
   )
-  out_sc[[6]] <- pmax(out_sc[[6]], 0)
+  # out_sc[[6]] <- pmax(out_sc[[6]], 0)
 
   saveRDS(out_sc, file = rds)
 }
@@ -601,7 +601,7 @@ if (file.exists(rds)) {
       counts(sc), geneIds(gene_sets_sim),
       BPPARAM = MulticoreParam(cores)
     ),
-    iterations = 1,
+    iterations = 5,
     check = FALSE,
     memory = FALSE,
     filter_gc = FALSE
@@ -651,7 +651,7 @@ if (file.exists(rds)) {
       counts(sc_big), geneIds(gene_sets_sim),
       BPPARAM = MulticoreParam(cores)
     ),
-    iterations = 1,
+    iterations = 5,
     check = FALSE,
     memory = FALSE,
     filter_gc = FALSE
@@ -701,7 +701,7 @@ if (file.exists(rds)) {
       counts(sc_big), geneIds(gene_sets_sim),
       BPPARAM = MulticoreParam(cores)
     ),
-    iterations = 1,
+    iterations = 5,
     check = FALSE,
     memory = FALSE,
     filter_gc = FALSE
@@ -751,7 +751,7 @@ if (file.exists(rds)) {
       counts(sc_big), geneIds(gene_sets_sim),
       BPPARAM = MulticoreParam(cores)
     ),
-    iterations = 1,
+    iterations = 5,
     check = FALSE,
     memory = FALSE,
     filter_gc = FALSE
@@ -801,7 +801,7 @@ if (file.exists(rds)) {
       counts(sc_big), geneIds(gene_sets_sim),
       BPPARAM = MulticoreParam(cores)
     ),
-    iterations = 1,
+    iterations = 5,
     check = FALSE,
     memory = FALSE,
     filter_gc = FALSE
@@ -811,55 +811,105 @@ if (file.exists(rds)) {
   saveRDS(bench_sc5, file = rds)
 }
 
-# sc_big <- cbind(sc_big, sc_big)
-# 
-# rds <- file.path(cache_dir, "bench_sc6.rds")
-# if (file.exists(rds)) {
-#   bench_sc6 <- readRDS(rds)
-# } else {
-# 
-#   cores <- availableCores()
-#   gc()
-#   bench_sc6 <- mark(
-#     gsva(
-#       gsvaParam(
-#         counts(sc_big), gene_sets_sim, minSize = 2, kcdf = "Poisson"
-#       ),
-#       BPPARAM = MulticoreParam(cores)
-#     ),
-#     gsva(
-#       gsvaParam(
-#         logcounts(sc_big), gene_sets_sim, minSize = 2, kcdf = "Gaussian"
-#       ),
-#       BPPARAM = MulticoreParam(cores)
-#     ),
-#     gsva(
-#       ssgseaParam(
-#         logcounts(sc_big), gene_sets_sim, minSize = 2, normalize = FALSE
-#       ),
-#       BPPARAM = MulticoreParam(cores)
-#     ),
-#     gsva(
-#       zscoreParam(logcounts(sc_big), gene_sets_sim, minSize = 2),
-#       BPPARAM = MulticoreParam(cores)
-#     ),
-#     gsva(
-#       plageParam(as.matrix(logcounts(sc_big)), gene_sets_sim, minSize = 2),
-#       BPPARAM = MulticoreParam(cores)
-#     ),
-#     genefunnel(
-#       counts(sc_big), geneIds(gene_sets_sim),
-#       BPPARAM = MulticoreParam(cores)
-#     ),
-#     iterations = 1,
-#     check = FALSE,
-#     memory = FALSE,
-#     filter_gc = FALSE
-#   )
-#   gc()
-# 
-#   saveRDS(bench_sc6, file = rds)
-# }
+sc_big <- cbind(sc_big, sc_big)
+
+rds <- file.path(cache_dir, "bench_sc6.rds")
+if (file.exists(rds)) {
+  bench_sc6 <- readRDS(rds)
+} else {
+
+  cores <- availableCores()
+  gc()
+  bench_sc6 <- mark(
+    gsva(
+      gsvaParam(
+        counts(sc_big), gene_sets_sim, minSize = 2, kcdf = "Poisson"
+      ),
+      BPPARAM = MulticoreParam(cores)
+    ),
+    gsva(
+      gsvaParam(
+        logcounts(sc_big), gene_sets_sim, minSize = 2, kcdf = "Gaussian"
+      ),
+      BPPARAM = MulticoreParam(cores)
+    ),
+    gsva(
+      ssgseaParam(
+        logcounts(sc_big), gene_sets_sim, minSize = 2, normalize = FALSE
+      ),
+      BPPARAM = MulticoreParam(cores)
+    ),
+    gsva(
+      zscoreParam(logcounts(sc_big), gene_sets_sim, minSize = 2),
+      BPPARAM = MulticoreParam(cores)
+    ),
+    gsva(
+      plageParam(as.matrix(logcounts(sc_big)), gene_sets_sim, minSize = 2),
+      BPPARAM = MulticoreParam(cores)
+    ),
+    genefunnel(
+      counts(sc_big), geneIds(gene_sets_sim),
+      BPPARAM = MulticoreParam(cores)
+    ),
+    iterations = 5,
+    check = FALSE,
+    memory = FALSE,
+    filter_gc = FALSE
+  )
+  gc()
+
+  saveRDS(bench_sc6, file = rds)
+}
+
+sc_big <- cbind(sc_big, sc_big)
+
+rds <- file.path(cache_dir, "bench_sc7.rds")
+if (file.exists(rds)) {
+  bench_sc7 <- readRDS(rds)
+} else {
+
+  cores <- availableCores()
+  gc()
+  bench_sc7 <- mark(
+    gsva(
+      gsvaParam(
+        counts(sc_big), gene_sets_sim, minSize = 2, kcdf = "Poisson"
+      ),
+      BPPARAM = MulticoreParam(cores)
+    ),
+    gsva(
+      gsvaParam(
+        logcounts(sc_big), gene_sets_sim, minSize = 2, kcdf = "Gaussian"
+      ),
+      BPPARAM = MulticoreParam(cores)
+    ),
+    gsva(
+      ssgseaParam(
+        logcounts(sc_big), gene_sets_sim, minSize = 2, normalize = FALSE
+      ),
+      BPPARAM = MulticoreParam(cores)
+    ),
+    gsva(
+      zscoreParam(logcounts(sc_big), gene_sets_sim, minSize = 2),
+      BPPARAM = MulticoreParam(cores)
+    ),
+    gsva(
+      plageParam(as.matrix(logcounts(sc_big)), gene_sets_sim, minSize = 2),
+      BPPARAM = MulticoreParam(cores)
+    ),
+    genefunnel(
+      counts(sc_big), geneIds(gene_sets_sim),
+      BPPARAM = MulticoreParam(cores)
+    ),
+    iterations = 5,
+    check = FALSE,
+    memory = FALSE,
+    filter_gc = FALSE
+  )
+  gc()
+
+  saveRDS(bench_sc7, file = rds)
+}
 ```
 
 Algorithm Overview
@@ -870,19 +920,19 @@ Row {data-height=355}
 
 ### About GeneFunnel 1 {.no-title}
 
-GeneFunnel is a tool for gene set enrichment (or feature set scoring to generalise the concept), falling in the class of methods commonly referred to as ssGSEA-like (single-sample gene set enrichment analysis).
+GeneFunnel is a tool for gene set enrichment (or functional class scoring to be more precise).
 It takes as input a matrix of genes/proteins (generally referred to as features) and samples, for example the output of an (sc)RNAseq or mass-spectrometry proteomics experiment.
-Also required is a gene set list, such as those provided by the Gene Ontology (GO), where each element is a set of genes (or any feature matching those in the input matrix) with a name for each set.
-The algorithm for GeneFunnel is expressed mathematically below, and explained intuitively in the right-hand pane.
+Also required is a gene set list, such as from the Gene Ontology (GO), where each element is a set of genes with a name for each set.
 
 $$
-\text{score}_{k,j} = \sum_{i \in G_k} X_{i,j} - \sum_{i \in G_k} \left| X_{i,j} - \bar{X}_{G_k,j} \right|
+\text{score}_{k,j} = \sum_{i \in G_k} X_{i,j} - \left( \frac{|G_k|}{2(|G_k| - 1)} \sum_{i \in G_k} \left| X_{i,j} - \bar{X}_{G_k,j} \right| \right)
 $$
 Where:
 
-- $\sum_{i \in G_k} X_{i,j}$ is the sum of the expression levels for the genes in gene set $G_k$ for sample $j$.
-- $\bar{X}_{G_k,j}$ is the mean expression of the genes in gene set $G_k$ for sample $j$.
+- $\sum_{i \in G_k} X_{i,j}$ is the sum of the expression levels for the features in gene set $G_k$ for sample $j$.
+- $\bar{X}_{G_k,j}$ is the mean expression of the features in gene set $G_k$ for sample $j$.
 - $\sum_{i \in G_k} \left| X_{i,j} - \bar{X}_{G_k,j} \right|$ is the sum of the absolute deviations from the mean.
+- $\frac{|G_k|}{2(|G_k| - 1)}$ is the scaling factor, which accounts for the number of features in the gene set and adjusts the influence of deviation.
 
 ### About GeneFunnel 2 {.no-title}
 
@@ -892,10 +942,10 @@ Conceptually, scoring takes the sum of the matching features, then adjusts the s
 Specifically, the measure of deviance is taken by subtracting the value of each feature from the mean of matched features, taking the absolute value, then summing all of the deviance values.
 The absolute value is necessary as many features will have values lower than the mean, and we are interested in any deviance whether positive or negative.
   
-The summed deviance is then subtracted from the overall sum, providing the final score.
-This provides the property that a minimally deviant set will be equal to the sum, while a maximally deviant set will be equal to the inverse sum, in other words the sum multiplied by -1.
-Users may be interested in excluding sets with negative values or clamping their scores to zero, as such sets are considered unenriched.
-It is also up to the discretion of the user to log or otherwise transform scores, as is done with scRNAseq data to compress values to a smaller range, though in most cases the deviance correction will naturally protect against extreme values.
+A scaling factor is then derived, defined as the size of the gene set divided by twice the gene set size after an initial subtraction of 1.
+Finally for each gene set, the summed deviance is multiplied by the scaling factor and then subtracted from the sum, yielding the score.
+This provides the property that a minimally deviant set will be equal to the sum, while a maximally deviant set will be equal to zero.
+Furthermore, a larger gene set with the same mean and deviance as a smaller one will have a greater score.
 
 Row {data-height=650}
 ---
@@ -975,30 +1025,30 @@ shinyApp(
       heatmap_mat <- matrix(
         c(
           sum(numeric_mat[ , 1], na.rm = TRUE) -
-            sum(
+            (sum(
               abs(numeric_mat[ , 1] - mean(numeric_mat[ , 1], na.rm = TRUE)),
               na.rm = TRUE
-            ),
+            ) * (10 / 18)),
           sum(numeric_mat[ , 2], na.rm = TRUE) -
-            sum(
+            (sum(
               abs(numeric_mat[ , 2] - mean(numeric_mat[ , 2], na.rm = TRUE)),
               na.rm = TRUE
-            ),
+            ) * (10 / 18)),
           sum(numeric_mat[ , 3], na.rm = TRUE) -
-            sum(
+            (sum(
               abs(numeric_mat[ , 3] - mean(numeric_mat[ , 3], na.rm = TRUE)),
               na.rm = TRUE
-            ),
+            ) * (10 / 18)),
           sum(numeric_mat[ , 4], na.rm = TRUE) -
-            sum(
+            (sum(
               abs(numeric_mat[ , 4] - mean(numeric_mat[ , 4], na.rm = TRUE)),
               na.rm = TRUE
-            ),
+            ) * (5 / 8)),
           sum(numeric_mat[ , 5], na.rm = TRUE) -
-            sum(
+            (sum(
               abs(numeric_mat[ , 5] - mean(numeric_mat[ , 5], na.rm = TRUE)),
               na.rm = TRUE
-            )
+            ) * (10 / 18))
         ),
         nrow =  1,
         ncol = 5,
@@ -1011,102 +1061,102 @@ shinyApp(
             paste0(
               "\n\n\n\nSum = ", sum(numeric_mat[ , 1], na.rm = TRUE),
               "\nMean = ", mean(numeric_mat[ , 1], na.rm = TRUE),
-              "\nVar = ", round(
+              "\nDeviance = ", round(
                 sum(
                   abs(
                     numeric_mat[ , 1] - mean(numeric_mat[ , 1], na.rm = TRUE)
                   ),
                   na.rm = TRUE
-                ),
-                digits = 1
+                ) * (10 / 18),
+                digits = 0
               ),
-              "\nScore = ", sum(numeric_mat[ , 1], na.rm = TRUE) -
-                sum(
+              "\nScore = ", round(sum(numeric_mat[ , 1], na.rm = TRUE) -
+                (sum(
                   abs(
                     numeric_mat[ , 1] - mean(numeric_mat[ , 1], na.rm = TRUE)
                   ),
                   na.rm = TRUE
-                )
+                ) * (10 / 18)))
             ),
             paste0(
               "\n\n\n\nSum = ", sum(numeric_mat[ , 2], na.rm = TRUE),
               "\nMean = ", mean(numeric_mat[ , 2], na.rm = TRUE),
-              "\nVar = ", round(
+              "\nDeviance = ", round(
                 sum(
                   abs(
                     numeric_mat[ , 2] - mean(numeric_mat[ , 2], na.rm = TRUE)
                   ),
                   na.rm = TRUE
-                ),
-                digits = 1
+                ) * (10 / 18),
+                digits = 0
               ),
-              "\nScore = ", sum(numeric_mat[ , 2], na.rm = TRUE) -
-                sum(
+              "\nScore = ", round(sum(numeric_mat[ , 2], na.rm = TRUE) -
+                (sum(
                   abs(
                     numeric_mat[ , 2] - mean(numeric_mat[ , 2], na.rm = TRUE)
                   ),
                   na.rm = TRUE
-                )
+                ) * (10 / 18)))
             ),
             paste0(
               "\n\n\n\nSum = ", sum(numeric_mat[ , 3], na.rm = TRUE),
               "\nMean = ", mean(numeric_mat[ , 3], na.rm = TRUE),
-               "\nVar = ", round(
+               "\nDeviance = ", round(
                 sum(
                   abs(
                     numeric_mat[ , 3] - mean(numeric_mat[ , 3], na.rm = TRUE)
                   ),
                   na.rm = TRUE
-                ),
-                digits = 1
+                ) * (10 / 18),
+                digits = 0
               ),
-              "\nScore = ", sum(numeric_mat[ , 3], na.rm = TRUE) -
-                sum(
+              "\nScore = ", round(sum(numeric_mat[ , 3], na.rm = TRUE) -
+                (sum(
                   abs(
                     numeric_mat[ , 3] - mean(numeric_mat[ , 3], na.rm = TRUE)
                   ),
                   na.rm = TRUE
-                )
+                ) * (10 / 18)))
             ),
             paste0(
               "\n\n\n\nSum = ", sum(numeric_mat[ , 4], na.rm = TRUE),
               "\nMean = ", mean(numeric_mat[ , 4], na.rm = TRUE),
-              "\nVar = ", round(
+              "\nDeviance = ", round(
                 sum(
                   abs(
                     numeric_mat[ , 4] - mean(numeric_mat[ , 4], na.rm = TRUE)
                   ),
                   na.rm = TRUE
-                ),
-                digits = 1
+                ) * (5 / 8),
+                digits = 0
               ),
-              "\nScore = ", sum(numeric_mat[ , 4], na.rm = TRUE) -
-                sum(
+              "\nScore = ", round(sum(numeric_mat[ , 4], na.rm = TRUE) -
+                (sum(
                   abs(
                     numeric_mat[ , 4] - mean(numeric_mat[ , 4], na.rm = TRUE)
                   ),
                   na.rm = TRUE
-                )
+                ) * (5 / 8)))
             ),
             paste0(
               "\n\n\n\nSum = ", sum(numeric_mat[ , 5], na.rm = TRUE),
               "\nMean = ", mean(numeric_mat[ , 5], na.rm = TRUE),
-              "\nVar = ", round(
+              "\nDeviance = ", round(
                 sum(
                   abs(
                     numeric_mat[ , 5] - mean(numeric_mat[ , 5], na.rm = TRUE)
                   ),
                   na.rm = TRUE
-                ),
-                digits = 1
+                ) * (10 / 18),
+                digits = 0
               ),
-              "\nScore = ", sum(numeric_mat[ , 5], na.rm = TRUE) -
-                sum(
+              "\nScore = ", round(sum(numeric_mat[ , 5], na.rm = TRUE) -
+                (sum(
                   abs(
                     numeric_mat[ , 5] - mean(numeric_mat[ , 5], na.rm = TRUE)
                   ),
                   na.rm = TRUE
-                )
+                ) * (10 / 18)))
             )
           ),
           rot = 0,
@@ -1162,7 +1212,8 @@ Row {data-height=500}
 ### Example Matrix {.no-title}
 
 ```{r}
-mat <- default_mat[ , 1:4]
+mat <- default_mat[ , c(1:3, 5)]
+mat[c(6, 7), 4] <- 100
 
 col_range <- c(min(mat), (min(mat) + max(mat)) / 2, max(mat))
 draw(
@@ -1471,6 +1522,11 @@ for (i in c(4:6)) {
   rownames <- rownames(tmp)[1:2]
   mat <- mat[rownames(mat) %in% rownames, ]
   mat <- mat[match(rownames, rownames(mat)), ]
+  col_range <- c(
+    min(counts(mat)),
+    (min(counts(mat)) + max(counts(mat))) / 2,
+    max(counts(mat))
+  )
   grid_list[[i - 3]] <- Heatmap(
     counts(mat),
     name = names(out_sim)[[i]],
@@ -1796,7 +1852,7 @@ This helps keep enriched gene sets comparable between the columns.
 <div>
 
 ```{r, fig.width = 8, fig.height = 7}
-mat <- SingleCellExperiment(list(counts = out_sim[[6]]))
+mat <- SingleCellExperiment(list(counts = out_sim[[6]] + 1))
 mat$Group <- sim$Group
 mat <- mat[ , c(1, 2, 3)]
 col_range <- c(
@@ -1805,8 +1861,13 @@ col_range <- c(
   max(counts(mat))
 )
 
-tmp <- mat[order(counts(mat[ , 1]), decreasing = TRUE), ]
-rownames <- rownames(tmp)[1:20]
+# tmp <- mat[order(counts(mat[ , 3]), decreasing = TRUE), ]
+tmp <- mat[order(counts(mat[ , 3]) - counts(mat[ , 2]), decreasing = TRUE), ]
+rownames <- rownames(tmp)[c(1:10)]
+tmp <- mat[order(counts(mat[ , 2]) - counts(mat[ , 3]), decreasing = TRUE), ]
+rownames <- c(rownames, rownames(tmp)[c(1:10)])
+# rownames <- rownames(tmp)[c(1:5, 4867:4872, 9733:9738)]
+# rownames <- rownames(tmp)[c(1:10, 9728:9738)]
 mat <- mat[rownames(mat) %in% rownames, ]
 mat <- mat[match(rownames, rownames(mat)), ]
 draw(
@@ -2291,7 +2352,8 @@ for (gse in gse_plot) {
 <div>
 
 ```{r, fig.width = 7, fig.height = 8}
-gse_plot <- "synaptic vesicle clustering"
+gse_plot <-
+  "energy coupled proton transmembrane transport, against electrochemical gradient"
 for (gse in gse_plot) {
   genes <- unlist(geneIds(gene_sets_sim[names(gene_sets_sim) %in% gse]))
   mat <- sim[rownames(sim) %in% genes, c(1, 2, 3)]
@@ -2299,14 +2361,14 @@ for (gse in gse_plot) {
   gene_anno_sub <- gene_anno_sub[match(rownames(mat), gene_anno_sub$ensembl), ]
   rownames(mat) <- gene_anno_sub$symbol
   col_range <- c(
-    min(logcounts(mat)),
-    (min(logcounts(mat)) + max(logcounts(mat))) / 2,
-    max(logcounts(mat))
+    min(counts(mat)),
+    (min(counts(mat)) + max(counts(mat))) * 0.01,
+    max(counts(mat))
   )
   ht <- draw(
     Heatmap(
-      logcounts(mat),
-      name = "log2 + 1 Gene Expression",
+      counts(mat),
+      name = "Raw Counts",
       col = colorRamp2(col_range, colors = c("blue", "white", "red")),
       cluster_rows = FALSE,
       cluster_columns = FALSE,
@@ -2319,6 +2381,11 @@ for (gse in gse_plot) {
       row_names_gp = gpar(fontsize = 9),
       column_title_gp = gpar(fontsize = 12),
       row_names_side = "left",
+      cell_fun = function(j, i, x, y, width, height, fill) {
+        grid.text(
+          sprintf("%.1f", counts(mat)[i, j]), x, y, gp = gpar(fontsize = 10)
+        )
+      },
       heatmap_legend_param = list(
         labels_gp = gpar(fontsize = 10), title_gp = gpar(fontsize = 12),
         border = "lightgrey", title_position = "topcenter",
@@ -2335,7 +2402,7 @@ for (gse in gse_plot) {
 <div>
 
 ```{r, fig.width = 7, fig.height = 8}
-gse_plot <- "synaptobrevin 2-SNAP-25-syntaxin-1a-complexin I complex"
+gse_plot <- "synaptic vesicle maturation"
 for (gse in gse_plot) {
   genes <- unlist(geneIds(gene_sets_sim[names(gene_sets_sim) %in% gse]))
   mat <- sim[rownames(sim) %in% genes, c(1, 2, 3)]
@@ -2343,15 +2410,16 @@ for (gse in gse_plot) {
   gene_anno_sub <- gene_anno_sub[match(rownames(mat), gene_anno_sub$ensembl), ]
   rownames(mat) <- gene_anno_sub$symbol
   col_range <- c(
-    min(logcounts(mat)),
-    (min(logcounts(mat)) + max(logcounts(mat))) / 2,
-    max(logcounts(mat))
+    min(counts(mat)),
+    (min(counts(mat)) + max(counts(mat))) * 0.001,
+    (min(counts(mat)) + max(counts(mat))) * 0.925,
+    max(counts(mat))
   )
   ht <- draw(
     Heatmap(
-      logcounts(mat),
-      name = "log2 + 1 Gene Expression",
-      col = colorRamp2(col_range, colors = c("blue", "white", "red")),
+      counts(mat),
+      name = "Raw Counts",
+      col = colorRamp2(col_range, colors = c("blue", "lavender", "lightcoral", "red")),
       cluster_rows = FALSE,
       cluster_columns = FALSE,
       show_column_names = FALSE,
@@ -2363,6 +2431,11 @@ for (gse in gse_plot) {
       row_names_gp = gpar(fontsize = 9),
       column_title_gp = gpar(fontsize = 12),
       row_names_side = "left",
+      cell_fun = function(j, i, x, y, width, height, fill) {
+        grid.text(
+          sprintf("%.1f", counts(mat)[i, j]), x, y, gp = gpar(fontsize = 10)
+        )
+      },
       heatmap_legend_param = list(
         labels_gp = gpar(fontsize = 10), title_gp = gpar(fontsize = 12),
         border = "lightgrey", title_position = "topcenter",
@@ -2471,123 +2544,6 @@ for (gse in gse_plot) {
 </div>
 </div>
 
-Real Dataset Single-cell Level
-===
-
-### Background
-
-> We use the same real dataset as before but this time apply the methods on the single-cell rather than pseudobulk level.
-
-```{r}
-```
-
-### Gene Set Scoring
-
-<div style='display:flex; flex-direction:row; justify-content:space-evenly;'>
-<div>
-
-```{r, fig.width = 8, fig.height = 7}
-grid_list <- vector("list", length = 3)
-
-for (i in c(1:3)) {
-  mat <- SingleCellExperiment(list(counts = out_sc[[i]]))
-  mat$Group <- sc$Group
-  mat <- mat[ , mat$Group == "Group1"]
-  col_range <- c(
-    min(counts(mat)),
-    (min(counts(mat)) + max(counts(mat))) / 2,
-    max(counts(mat))
-  )
-
-  tmp <- mat[order(rowSums(counts(mat)), decreasing = TRUE), ]
-  rownames <- rownames(tmp)[1:10]
-  mat <- mat[rownames(mat) %in% rownames, ]
-  mat <- mat[match(rownames, rownames(mat)), ]
-  grid_list[[i]] <- Heatmap(
-    counts(mat),
-    name = names(out_sc)[[i]],
-    col = colorRamp2(col_range, colors = c("blue", "white", "red")),
-    cluster_rows = FALSE,
-    cluster_columns = FALSE,
-    show_column_names = FALSE,
-    column_title = NULL,
-    rect_gp = gpar(col = "black", lwd = 0.5),
-    column_gap = unit(1, units = "mm"),
-    row_names_gp = gpar(fontsize = 8),
-    column_title_gp = gpar(fontsize = 16),
-    row_names_side = "left",
-    row_names_max_width = max_text_width(
-      rownames(mat), gp = gpar(fontsize = 8)
-    ),
-    heatmap_legend_param = list(
-      labels_gp = gpar(fontsize = 12), title_gp = gpar(fontsize = 14),
-      border = "lightgrey", title_position = "topcenter",
-      grid_height = unit(4, units = "mm"), direction = "horizontal"
-    )
-  )
-
-  grid_list[[i]] <- grid.grabExpr(
-    draw(grid_list[[i]], heatmap_legend_side = "top")
-  )
-}
-
-plot_grid(grid_list[[1]], grid_list[[2]], grid_list[[3]], nrow = 3)
-```
-
-</div>
-<div>
-
-```{r, fig.width = 8, fig.height = 7}
-grid_list <- vector("list", length = 3)
-
-for (i in c(4, 6)) {
-  mat <- SingleCellExperiment(list(counts = out_sc[[i]]))
-  mat$Group <- sc$Group
-  mat <- mat[ , mat$Group == "Group1"]
-  col_range <- c(
-    min(counts(mat), na.rm = TRUE),
-    (min(counts(mat), na.rm = TRUE) + max(counts(mat), na.rm = TRUE)) / 2,
-    max(counts(mat), na.rm = TRUE)
-  )
-
-  tmp <- mat[order(rowSums(counts(mat)), decreasing = TRUE), ]
-  rownames <- rownames(tmp)[1:10]
-  mat <- mat[rownames(mat) %in% rownames, ]
-  mat <- mat[match(rownames, rownames(mat)), ]
-  grid_list[[i - 3]] <- Heatmap(
-    counts(mat),
-    name = names(out_sc)[[i]],
-    col = colorRamp2(col_range, colors = c("blue", "white", "red")),
-    cluster_rows = FALSE,
-    cluster_columns = FALSE,
-    show_column_names = FALSE,
-    column_title = NULL,
-    rect_gp = gpar(col = "black", lwd = 0.5),
-    column_gap = unit(1, units = "mm"),
-    row_names_gp = gpar(fontsize = 8),
-    column_title_gp = gpar(fontsize = 16),
-    row_names_side = "left",
-    row_names_max_width = max_text_width(
-      rownames(mat), gp = gpar(fontsize = 8)
-    ),
-    heatmap_legend_param = list(
-      labels_gp = gpar(fontsize = 12), title_gp = gpar(fontsize = 14),
-      border = "lightgrey", title_position = "topcenter",
-      grid_height = unit(4, units = "mm"), direction = "horizontal"
-    )
-  )
-
-  grid_list[[i - 3]] <- grid.grabExpr(
-    draw(grid_list[[i - 3]], heatmap_legend_side = "top")
-  )
-}
-
-plot_grid(grid_list[[1]], grid_list[[3]], nrow = 2)
-```
-
-</div>
-</div>
-
 Performance Benchmarks
 ===
 
@@ -2626,7 +2582,12 @@ bench_sc4[ , 1:9]
 bench_sc5[ , 1] <- names(out_sim)
 bench_sc5[ , 1:9]
 
-bench_comb <- list(bench_sc, bench_sc2, bench_sc3, bench_sc4, bench_sc5)
+bench_sc6[ , 1] <- names(out_sim)
+bench_sc6[ , 1:9]
+
+bench_comb <- list(
+  bench_sc, bench_sc2, bench_sc3, bench_sc4, bench_sc5, bench_sc6
+)
 bench_comb <- do.call(
   rbind,
   lapply(
@@ -2645,7 +2606,9 @@ time_formatter <- function(x) {
   seconds <- x %% 60
   paste0(minutes, "m ", round(seconds), "s")
 }
-breaks <- c(2, 3, 5, 7, 10, 20, 30, 50, 70, 100, 200, 300, 500, 700, 1000, 1500)
+breaks <- c(
+  3, 4, 5, 6, 7, 10, 20, 30, 50, 70, 100, 200, 300, 500, 700, 1000, 1500, 3000
+)
 
 ggplot(
   bench_comb, aes(
@@ -2655,7 +2618,6 @@ ggplot(
   geom_point(size = 3) +
   geom_line() +
   scale_y_log10(breaks = breaks, labels = time_formatter) +
-  expand_limits(y = 1500)
   labs(
     title = "Benchmarking Tools on Different Data Subsets",
     x = "Data Subsets",

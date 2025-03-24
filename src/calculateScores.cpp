@@ -59,7 +59,14 @@ NumericMatrix calculateScores(
       double sum_values = sum(idx_values);
       double var_values = sum(abs(idx_values - mean(idx_values)));
 
-      double score = sum_values - var_values;
+      size_t size = idx_values.size();
+      double factor = static_cast<double>(size) / (2.0 * (size - 1));
+      double score = sum_values - (var_values * factor);
+
+      double epsilon = 1e-9;
+      if (fabs(score) < epsilon) {
+        score = 0.0;
+      }
 
       mat(i, j) = score;
     }
